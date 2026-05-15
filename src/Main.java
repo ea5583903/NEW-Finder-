@@ -6,6 +6,7 @@ import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDesktopPane;
+import javax.swing.JEditorPane;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JInternalFrame;
@@ -30,6 +31,7 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -40,6 +42,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Desktop;
 import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -51,6 +54,10 @@ import java.awt.event.MouseEvent;
 import java.awt.Toolkit;
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
@@ -86,6 +93,8 @@ class DesktopFrame extends JFrame {
     private TerminalFrame terminal;
     private NotepadFrame notepad;
     private AppCreatorFrame appCreator;
+    private FileEditorFrame fileEditor;
+    private BrowserFrame browser;
 
     DesktopFrame() {
         super("Mactonish System");
@@ -104,6 +113,8 @@ class DesktopFrame extends JFrame {
         addDesktopIcon("Terminal", 34, 234, this::openTerminal);
         addDesktopIcon("Notepad", 34, 334, this::openNotepad);
         addDesktopIcon("App Maker", 34, 434, this::openAppCreator);
+        addDesktopIcon("File Edit", 34, 534, this::openFileEditor);
+        addDesktopIcon("Browser", 34, 634, this::openBrowser);
         addDeskPlate();
         openFinder();
     }
@@ -117,7 +128,7 @@ class DesktopFrame extends JFrame {
         JMenuItem about = new JMenuItem("About This Computer");
         about.addActionListener(event -> JOptionPane.showMessageDialog(
                 this,
-                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, and App Maker are built in.",
+                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, and Browser are built in.",
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));
@@ -137,11 +148,17 @@ class DesktopFrame extends JFrame {
         notepadItem.addActionListener(event -> openNotepad());
         JMenuItem appCreatorItem = new JMenuItem("App Maker");
         appCreatorItem.addActionListener(event -> openAppCreator());
+        JMenuItem fileEditorItem = new JMenuItem("File Edit");
+        fileEditorItem.addActionListener(event -> openFileEditor());
+        JMenuItem browserItem = new JMenuItem("Browser");
+        browserItem.addActionListener(event -> openBrowser());
         apps.add(finderItem);
         apps.add(pRunItem);
         apps.add(terminalItem);
         apps.add(notepadItem);
         apps.add(appCreatorItem);
+        apps.add(fileEditorItem);
+        apps.add(browserItem);
 
         JMenu view = new JMenu("Desktop");
         JMenuItem arrange = new JMenuItem("Clean Up Icons");
@@ -248,6 +265,34 @@ class DesktopFrame extends JFrame {
             appCreator.setIcon(false);
             appCreator.moveToFront();
             appCreator.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openFileEditor() {
+        try {
+            if (fileEditor == null || fileEditor.isClosed()) {
+                fileEditor = new FileEditorFrame();
+                desktop.add(fileEditor, JLayeredPane.PALETTE_LAYER);
+                fileEditor.setVisible(true);
+            }
+            fileEditor.setIcon(false);
+            fileEditor.moveToFront();
+            fileEditor.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openBrowser() {
+        try {
+            if (browser == null || browser.isClosed()) {
+                browser = new BrowserFrame();
+                desktop.add(browser, JLayeredPane.PALETTE_LAYER);
+                browser.setVisible(true);
+            }
+            browser.setIcon(false);
+            browser.moveToFront();
+            browser.setSelected(true);
         } catch (Exception ignored) {
         }
     }
@@ -1224,6 +1269,392 @@ class AppCreatorFrame extends JInternalFrame {
             name = "app-" + name;
         }
         return name;
+    }
+}
+
+class FileEditorFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JFileChooser chooser = new JFileChooser();
+    private final JTextField pathField = new JTextField();
+    private final JTextArea text = new JTextArea();
+    private final JLabel status = new JLabel(" no file ");
+    private File currentFile;
+    private boolean dirty;
+    private boolean loading;
+
+    FileEditorFrame() {
+        super("File Edit", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(760, 520);
+        setMinimumSize(new Dimension(520, 360));
+        setLocation(430, 110);
+
+        pathField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        pathField.setBackground(PAPER);
+        pathField.setForeground(INK);
+        pathField.addActionListener(event -> openTypedPath());
+
+        text.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        text.setBackground(PAPER);
+        text.setForeground(INK);
+        text.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent event) {
+                markDirty();
+            }
+
+            public void removeUpdate(DocumentEvent event) {
+                markDirty();
+            }
+
+            public void changedUpdate(DocumentEvent event) {
+                markDirty();
+            }
+        });
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" FILE EDITOR ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel controls = new JPanel(new BorderLayout(6, 6));
+        controls.setBackground(PAPER);
+        controls.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("Open...", this::openChooser));
+        buttons.add(retroButton("Open Path", this::openTypedPath));
+        buttons.add(retroButton("Save", this::saveFile));
+        buttons.add(retroButton("Save As...", this::saveFileAs));
+        controls.add(pathField, BorderLayout.CENTER);
+        controls.add(buttons, BorderLayout.SOUTH);
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(controls, BorderLayout.CENTER);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(text), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu file = new JMenu("File");
+        JMenuItem open = new JMenuItem("Open...");
+        open.addActionListener(event -> openChooser());
+        JMenuItem save = new JMenuItem("Save");
+        save.addActionListener(event -> saveFile());
+        JMenuItem saveAs = new JMenuItem("Save As...");
+        saveAs.addActionListener(event -> saveFileAs());
+        file.add(open);
+        file.add(save);
+        file.add(saveAs);
+        menuBar.add(file);
+        return menuBar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void openChooser() {
+        if (!confirmDiscard()) {
+            return;
+        }
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            openFile(chooser.getSelectedFile());
+        }
+    }
+
+    private void openTypedPath() {
+        if (!confirmDiscard()) {
+            return;
+        }
+        openFile(resolvePath(pathField.getText().trim()));
+    }
+
+    private void openFile(File file) {
+        if (file == null || !file.exists() || file.isDirectory()) {
+            status.setText(" cannot open ");
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        try {
+            loading = true;
+            currentFile = file;
+            pathField.setText(file.getAbsolutePath());
+            text.setText(Files.readString(file.toPath(), StandardCharsets.UTF_8));
+            text.setCaretPosition(0);
+            dirty = false;
+            status.setText(" " + file.getAbsolutePath() + " ");
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "File Edit", JOptionPane.ERROR_MESSAGE);
+        } finally {
+            loading = false;
+        }
+    }
+
+    private void saveFile() {
+        if (currentFile == null) {
+            saveFileAs();
+            return;
+        }
+        try {
+            Files.writeString(currentFile.toPath(), text.getText(), StandardCharsets.UTF_8);
+            dirty = false;
+            status.setText(" " + currentFile.getAbsolutePath() + " saved ");
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "File Edit", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void saveFileAs() {
+        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            currentFile = chooser.getSelectedFile();
+            pathField.setText(currentFile.getAbsolutePath());
+            saveFile();
+        }
+    }
+
+    private File resolvePath(String typed) {
+        if (typed.isBlank() || typed.equals("~")) {
+            return new File(System.getProperty("user.home"));
+        }
+        if ((typed.startsWith("\"") && typed.endsWith("\"")) || (typed.startsWith("'") && typed.endsWith("'"))) {
+            typed = typed.substring(1, typed.length() - 1);
+        }
+        if (typed.startsWith("~/")) {
+            return new File(System.getProperty("user.home") + typed.substring(1));
+        }
+        return new File(typed);
+    }
+
+    private void markDirty() {
+        if (!loading) {
+            dirty = true;
+            status.setText((currentFile == null ? " no file" : " " + currentFile.getAbsolutePath()) + " modified ");
+        }
+    }
+
+    private boolean confirmDiscard() {
+        if (!dirty) {
+            return true;
+        }
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Discard unsaved File Edit changes?",
+                "File Edit",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        return choice == JOptionPane.YES_OPTION;
+    }
+}
+
+class BrowserFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JTextField address = new JTextField("https://example.com");
+    private final JEditorPane page = new JEditorPane();
+    private final JLabel status = new JLabel(" ready ");
+    private URL currentUrl;
+
+    BrowserFrame() {
+        super("Browser", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(820, 560);
+        setMinimumSize(new Dimension(560, 380));
+        setLocation(460, 150);
+
+        address.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        address.setBackground(PAPER);
+        address.setForeground(INK);
+        address.addActionListener(event -> loadTypedAddress());
+
+        page.setEditable(false);
+        page.setBackground(Color.WHITE);
+        page.addHyperlinkListener(event -> {
+            if (event.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+                loadUrl(event.getURL());
+            }
+        });
+        page.setText("<html><body><h1>Mactonish Browser</h1><p>Type a URL, search words, or local HTML file path and press Go.</p><p>JavaScript pages can be opened externally.</p></body></html>");
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" WEB BROWSER ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel controls = new JPanel(new BorderLayout(6, 0));
+        controls.setBackground(PAPER);
+        controls.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("Go", this::loadTypedAddress));
+        buttons.add(retroButton("Open External", this::openExternal));
+        controls.add(address, BorderLayout.CENTER);
+        controls.add(buttons, BorderLayout.EAST);
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(controls, BorderLayout.CENTER);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(page), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu browser = new JMenu("Browser");
+        JMenuItem go = new JMenuItem("Go");
+        go.addActionListener(event -> loadTypedAddress());
+        JMenuItem reload = new JMenuItem("Reload");
+        reload.addActionListener(event -> {
+            if (currentUrl != null) {
+                loadUrl(currentUrl);
+            }
+        });
+        JMenuItem external = new JMenuItem("Open External");
+        external.addActionListener(event -> openExternal());
+        browser.add(go);
+        browser.add(reload);
+        browser.add(external);
+        menuBar.add(browser);
+        return menuBar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void loadTypedAddress() {
+        try {
+            loadUrl(toUrl(address.getText().trim()));
+        } catch (Exception exception) {
+            status.setText(" bad address ");
+            JOptionPane.showMessageDialog(this, "Could not read address:\n" + exception.getMessage(), "Browser", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void loadUrl(URL url) {
+        if (url == null) {
+            return;
+        }
+        status.setText(" loading ");
+        address.setText(url.toExternalForm());
+        new SwingWorker<Void, Void>() {
+            protected Void doInBackground() throws Exception {
+                page.setPage(url);
+                return null;
+            }
+
+            protected void done() {
+                try {
+                    get();
+                    currentUrl = url;
+                    status.setText(" " + url.toExternalForm() + " ");
+                } catch (Exception exception) {
+                    status.setText(" failed ");
+                    page.setText("<html><body><h1>Load failed</h1><pre>" + escapeHtml(exception.getMessage()) + "</pre></body></html>");
+                }
+            }
+        }.execute();
+    }
+
+    private void openExternal() {
+        try {
+            URL url = currentUrl != null ? currentUrl : toUrl(address.getText().trim());
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                Desktop.getDesktop().browse(url.toURI());
+                status.setText(" opened external ");
+            } else {
+                status.setText(" external browser unavailable ");
+            }
+        } catch (Exception exception) {
+            status.setText(" external failed ");
+            JOptionPane.showMessageDialog(this, "Could not open external browser:\n" + exception.getMessage(), "Browser", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private URL toUrl(String typed) throws MalformedURLException {
+        if (typed.startsWith("http://") || typed.startsWith("https://") || typed.startsWith("file:")) {
+            return URI.create(typed).toURL();
+        }
+        if (typed.startsWith("~/")) {
+            typed = System.getProperty("user.home") + typed.substring(1);
+        }
+        File file = new File(typed);
+        if (file.exists()) {
+            return file.toURI().toURL();
+        }
+        if (typed.contains(" ") || !typed.contains(".")) {
+            String query = URLEncoder.encode(typed, StandardCharsets.UTF_8);
+            return URI.create("https://duckduckgo.com/html/?q=" + query).toURL();
+        }
+        return URI.create("https://" + typed).toURL();
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }
 

@@ -4,9 +4,13 @@ import javax.swing.BorderFactory;
 import javax.swing.InputMap;
 import javax.swing.Icon;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JDesktopPane;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+import javax.swing.JInternalFrame;
 import javax.swing.JLabel;
+import javax.swing.JLayeredPane;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -16,9 +20,12 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
@@ -52,6 +59,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class Main {
     public static void main(String[] args) {
@@ -61,13 +69,1165 @@ public class Main {
             } catch (Exception ignored) {
             }
 
-            FinderFrame frame = new FinderFrame();
+            DesktopFrame frame = new DesktopFrame();
             frame.setVisible(true);
         });
     }
 }
 
-class FinderFrame extends JFrame {
+class DesktopFrame extends JFrame {
+    private static final Color DESKTOP = new Color(104, 144, 152);
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JDesktopPane desktop = new JDesktopPane();
+    private FinderFrame finder;
+    private PRunFrame pRun;
+    private TerminalFrame terminal;
+    private NotepadFrame notepad;
+    private AppCreatorFrame appCreator;
+
+    DesktopFrame() {
+        super("Mactonish System");
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        setMinimumSize(new Dimension(980, 640));
+        setSize(1180, 760);
+        setLocationRelativeTo(null);
+        setJMenuBar(buildSystemMenu());
+
+        desktop.setBackground(DESKTOP);
+        desktop.setLayout(null);
+        setContentPane(desktop);
+
+        addDesktopIcon("Finder", 34, 34, this::openFinder);
+        addDesktopIcon("P-Run", 34, 134, this::openPRun);
+        addDesktopIcon("Terminal", 34, 234, this::openTerminal);
+        addDesktopIcon("Notepad", 34, 334, this::openNotepad);
+        addDesktopIcon("App Maker", 34, 434, this::openAppCreator);
+        addDeskPlate();
+        openFinder();
+    }
+
+    private JMenuBar buildSystemMenu() {
+        JMenuBar bar = new JMenuBar();
+        bar.setBackground(PAPER);
+        bar.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+
+        JMenu apple = new JMenu("Mactonish");
+        JMenuItem about = new JMenuItem("About This Computer");
+        about.addActionListener(event -> JOptionPane.showMessageDialog(
+                this,
+                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, and App Maker are built in.",
+                "About This Computer",
+                JOptionPane.INFORMATION_MESSAGE
+        ));
+        JMenuItem quit = new JMenuItem("Shut Down");
+        quit.addActionListener(event -> dispose());
+        apple.add(about);
+        apple.add(quit);
+
+        JMenu apps = new JMenu("Apps");
+        JMenuItem finderItem = new JMenuItem("Finder");
+        finderItem.addActionListener(event -> openFinder());
+        JMenuItem pRunItem = new JMenuItem("P-Run");
+        pRunItem.addActionListener(event -> openPRun());
+        JMenuItem terminalItem = new JMenuItem("Terminal");
+        terminalItem.addActionListener(event -> openTerminal());
+        JMenuItem notepadItem = new JMenuItem("Notepad");
+        notepadItem.addActionListener(event -> openNotepad());
+        JMenuItem appCreatorItem = new JMenuItem("App Maker");
+        appCreatorItem.addActionListener(event -> openAppCreator());
+        apps.add(finderItem);
+        apps.add(pRunItem);
+        apps.add(terminalItem);
+        apps.add(notepadItem);
+        apps.add(appCreatorItem);
+
+        JMenu view = new JMenu("Desktop");
+        JMenuItem arrange = new JMenuItem("Clean Up Icons");
+        arrange.addActionListener(event -> arrangeIcons());
+        view.add(arrange);
+
+        bar.add(apple);
+        bar.add(apps);
+        bar.add(view);
+        return bar;
+    }
+
+    private void addDesktopIcon(String label, int x, int y, Runnable action) {
+        JButton icon = new JButton("<html><center>[ ]<br>" + label + "</center></html>");
+        icon.setBounds(x, y, 92, 76);
+        icon.setHorizontalTextPosition(SwingConstants.CENTER);
+        icon.setVerticalTextPosition(SwingConstants.BOTTOM);
+        icon.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        icon.setForeground(INK);
+        icon.setBackground(PAPER);
+        icon.setFocusPainted(false);
+        icon.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(4, 4, 4, 4)
+        ));
+        icon.addActionListener(event -> action.run());
+        desktop.add(icon, JLayeredPane.DEFAULT_LAYER);
+    }
+
+    private void addDeskPlate() {
+        JLabel plate = new JLabel("  Welcome to Mactonish. Double-click Finder to view files.  ");
+        plate.setOpaque(true);
+        plate.setBackground(PAPER);
+        plate.setForeground(INK);
+        plate.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        plate.setBorder(BorderFactory.createLineBorder(INK, 2));
+        plate.setBounds(160, 34, 420, 30);
+        desktop.add(plate, JLayeredPane.DEFAULT_LAYER);
+    }
+
+    private void openFinder() {
+        try {
+            if (finder == null || finder.isClosed()) {
+                finder = new FinderFrame();
+                desktop.add(finder, JLayeredPane.PALETTE_LAYER);
+                finder.setVisible(true);
+            }
+            finder.setIcon(false);
+            finder.moveToFront();
+            finder.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openPRun() {
+        try {
+            if (pRun == null || pRun.isClosed()) {
+                pRun = new PRunFrame();
+                desktop.add(pRun, JLayeredPane.PALETTE_LAYER);
+                pRun.setVisible(true);
+            }
+            pRun.setIcon(false);
+            pRun.moveToFront();
+            pRun.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openTerminal() {
+        try {
+            if (terminal == null || terminal.isClosed()) {
+                terminal = new TerminalFrame();
+                desktop.add(terminal, JLayeredPane.PALETTE_LAYER);
+                terminal.setVisible(true);
+            }
+            terminal.setIcon(false);
+            terminal.moveToFront();
+            terminal.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openNotepad() {
+        try {
+            if (notepad == null || notepad.isClosed()) {
+                notepad = new NotepadFrame();
+                desktop.add(notepad, JLayeredPane.PALETTE_LAYER);
+                notepad.setVisible(true);
+            }
+            notepad.setIcon(false);
+            notepad.moveToFront();
+            notepad.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openAppCreator() {
+        try {
+            if (appCreator == null || appCreator.isClosed()) {
+                appCreator = new AppCreatorFrame();
+                desktop.add(appCreator, JLayeredPane.PALETTE_LAYER);
+                appCreator.setVisible(true);
+            }
+            appCreator.setIcon(false);
+            appCreator.moveToFront();
+            appCreator.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void arrangeIcons() {
+        int y = 34;
+        for (Component component : desktop.getComponents()) {
+            if (component instanceof JButton) {
+                component.setBounds(34, y, 92, 76);
+                y += 100;
+            }
+        }
+    }
+}
+
+class PRunFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+    private static final Color SHADE = new Color(184, 184, 176);
+
+    private final JFileChooser chooser = new JFileChooser();
+    private final JTextField fileField = new JTextField();
+    private final JTextArea output = new JTextArea();
+    private final JLabel status = new JLabel(" ready ");
+    private File selectedFile;
+
+    PRunFrame() {
+        super("P-Run", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(720, 460);
+        setMinimumSize(new Dimension(560, 340));
+        setLocation(250, 130);
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+
+        fileField.setEditable(true);
+        fileField.setFont(retroFont(Font.PLAIN, 12));
+        fileField.setBackground(PAPER);
+        fileField.setForeground(INK);
+        fileField.addActionListener(event -> runSelectedFile());
+
+        output.setEditable(false);
+        output.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        output.setBackground(Color.BLACK);
+        output.setForeground(new Color(216, 216, 196));
+        output.setCaretColor(Color.WHITE);
+        output.setText("P-Run guesses how to run files and folders.\nChoose a file/folder or type its path, then press Run.\n");
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" P-RUN PROGRAM RUNNER ", JLabel.CENTER);
+        titleText.setFont(retroFont(Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel controls = new JPanel(new BorderLayout(6, 6));
+        controls.setBackground(PAPER);
+        controls.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("Choose File...", this::chooseFile));
+        buttons.add(retroButton("Run", this::runSelectedFile));
+        buttons.add(retroButton("Clear", () -> output.setText("")));
+        controls.add(fileField, BorderLayout.CENTER);
+        controls.add(buttons, BorderLayout.SOUTH);
+
+        JPanel bottom = new JPanel(new BorderLayout());
+        bottom.setBackground(PAPER);
+        bottom.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+        status.setFont(retroFont(Font.PLAIN, 12));
+        bottom.add(status, BorderLayout.WEST);
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(controls, BorderLayout.CENTER);
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(output), BorderLayout.CENTER);
+        root.add(bottom, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu file = new JMenu("File");
+        JMenuItem choose = new JMenuItem("Choose File...");
+        choose.addActionListener(event -> chooseFile());
+        JMenuItem run = new JMenuItem("Run");
+        run.addActionListener(event -> runSelectedFile());
+        JMenuItem close = new JMenuItem("Close");
+        close.addActionListener(event -> dispose());
+        file.add(choose);
+        file.add(run);
+        file.add(close);
+        menuBar.add(file);
+        return menuBar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(retroFont(Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private Font retroFont(int style, int size) {
+        return new Font(Font.MONOSPACED, style, size);
+    }
+
+    private void chooseFile() {
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            selectedFile = chooser.getSelectedFile();
+            fileField.setText(selectedFile.getAbsolutePath());
+            status.setText(" selected ");
+            output.append("\nSelected: " + selectedFile.getAbsolutePath() + "\n");
+            output.append("Plan: " + describePlan(selectedFile) + "\n");
+        }
+    }
+
+    private void runSelectedFile() {
+        selectedFile = fileFromTypedPath();
+        if (selectedFile == null) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        if (!selectedFile.exists()) {
+            output.append("\nCannot run that selection.\n");
+            return;
+        }
+
+        status.setText(" running ");
+        fileField.setText(selectedFile.getAbsolutePath());
+        output.append("\nRunning: " + selectedFile.getAbsolutePath() + "\n");
+        new SwingWorker<Integer, String>() {
+            protected Integer doInBackground() throws Exception {
+                return runFile(selectedFile);
+            }
+
+            protected void process(List<String> chunks) {
+                for (String chunk : chunks) {
+                    output.append(chunk);
+                    output.setCaretPosition(output.getDocument().getLength());
+                }
+            }
+
+            protected void done() {
+                try {
+                    int exit = get();
+                    status.setText(" exit " + exit + " ");
+                    output.append("\n[P-Run finished with exit code " + exit + "]\n");
+                } catch (Exception exception) {
+                    status.setText(" failed ");
+                    output.append("\n[P-Run failed: " + exception.getMessage() + "]\n");
+                }
+            }
+
+            private int runFile(File file) throws IOException, InterruptedException {
+                if (file.isDirectory()) {
+                    return runFolder(file);
+                }
+
+                File directory = file.getParentFile();
+                String name = file.getName();
+                String lower = name.toLowerCase(Locale.ROOT);
+
+                if (lower.endsWith(".java")) {
+                    int compileExit = runProcess(Arrays.asList("javac", name), directory);
+                    if (compileExit != 0) {
+                        return compileExit;
+                    }
+                    return runProcess(Arrays.asList("java", className(name)), directory);
+                }
+                if (lower.endsWith(".class")) {
+                    return runProcess(Arrays.asList("java", className(name)), directory);
+                }
+                if (lower.endsWith(".jar")) {
+                    return runProcess(Arrays.asList("java", "-jar", name), directory);
+                }
+                if (lower.endsWith(".sh") || lower.endsWith(".command")) {
+                    return runProcess(Arrays.asList("sh", name), directory);
+                }
+                if (lower.endsWith(".py")) {
+                    return runProcess(Arrays.asList("python3", name), directory);
+                }
+                if (lower.endsWith(".js")) {
+                    return runProcess(Arrays.asList("node", name), directory);
+                }
+                if (lower.endsWith(".rb")) {
+                    return runProcess(Arrays.asList("ruby", name), directory);
+                }
+                if (lower.endsWith(".go")) {
+                    return runProcess(Arrays.asList("go", "run", name), directory);
+                }
+                if (file.canExecute()) {
+                    return runProcess(Arrays.asList("./" + name), directory);
+                }
+                publish("No runner known for ." + extension(name) + "\n");
+                return 127;
+            }
+
+            private int runFolder(File folder) throws IOException, InterruptedException {
+                File runScript = child(folder, "run.sh");
+                if (runScript.exists()) {
+                    return runShellScript(runScript, folder);
+                }
+
+                File startScript = child(folder, "start.sh");
+                if (startScript.exists()) {
+                    return runShellScript(startScript, folder);
+                }
+
+                File commandScript = child(folder, "run.command");
+                if (commandScript.exists()) {
+                    return runShellScript(commandScript, folder);
+                }
+
+                File packageJson = child(folder, "package.json");
+                if (packageJson.exists()) {
+                    String json = Files.readString(packageJson.toPath(), StandardCharsets.UTF_8);
+                    if (json.contains("\"start\"")) {
+                        return runProcess(Arrays.asList("npm", "start"), folder);
+                    }
+                    if (json.contains("\"dev\"")) {
+                        return runProcess(Arrays.asList("npm", "run", "dev"), folder);
+                    }
+                }
+
+                File gradlew = child(folder, "gradlew");
+                if (gradlew.exists()) {
+                    return runProcess(Arrays.asList("./gradlew", "run"), folder);
+                }
+
+                File mvnw = child(folder, "mvnw");
+                if (mvnw.exists()) {
+                    return runProcess(Arrays.asList("./mvnw", "spring-boot:run"), folder);
+                }
+
+                if (child(folder, "Cargo.toml").exists()) {
+                    return runProcess(Arrays.asList("cargo", "run"), folder);
+                }
+                if (child(folder, "go.mod").exists()) {
+                    return runProcess(Arrays.asList("go", "run", "."), folder);
+                }
+                if (child(folder, "pom.xml").exists()) {
+                    return runProcess(Arrays.asList("mvn", "exec:java"), folder);
+                }
+                if (child(folder, "build.gradle").exists() || child(folder, "build.gradle.kts").exists()) {
+                    return runProcess(Arrays.asList("gradle", "run"), folder);
+                }
+                if (child(folder, "main.py").exists()) {
+                    return runProcess(Arrays.asList("python3", "main.py"), folder);
+                }
+                if (child(folder, "app.py").exists()) {
+                    return runProcess(Arrays.asList("python3", "app.py"), folder);
+                }
+                if (child(folder, "index.js").exists()) {
+                    return runProcess(Arrays.asList("node", "index.js"), folder);
+                }
+                if (child(folder, "server.js").exists()) {
+                    return runProcess(Arrays.asList("node", "server.js"), folder);
+                }
+                if (child(folder, "Main.java").exists()) {
+                    int compileExit = runProcess(Arrays.asList("javac", "Main.java"), folder);
+                    if (compileExit != 0) {
+                        return compileExit;
+                    }
+                    return runProcess(Arrays.asList("java", "Main"), folder);
+                }
+                if (child(child(folder, "src"), "Main.java").exists()) {
+                    int compileExit = runProcess(Arrays.asList("javac", "-d", "out", "src/Main.java"), folder);
+                    if (compileExit != 0) {
+                        return compileExit;
+                    }
+                    return runProcess(Arrays.asList("java", "-cp", "out", "Main"), folder);
+                }
+
+                publish("No folder runner found. Looked for run.sh, package.json, Gradle/Maven/Cargo/Go, and common main files.\n");
+                return 127;
+            }
+
+            private int runShellScript(File script, File folder) throws IOException, InterruptedException {
+                if (script.canExecute()) {
+                    return runProcess(Arrays.asList("./" + script.getName()), folder);
+                }
+                return runProcess(Arrays.asList("sh", script.getName()), folder);
+            }
+
+            private int runProcess(List<String> command, File directory) throws IOException, InterruptedException {
+                publish("$ " + String.join(" ", command) + "\n");
+                ProcessBuilder builder = new ProcessBuilder(command);
+                builder.directory(directory);
+                builder.redirectErrorStream(true);
+                Process process = builder.start();
+                String text = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                if (!text.isEmpty()) {
+                    publish(text);
+                    if (!text.endsWith("\n")) {
+                        publish("\n");
+                    }
+                }
+                return process.waitFor();
+            }
+        }.execute();
+    }
+
+    private File fileFromTypedPath() {
+        String typed = fileField.getText().trim();
+        if (typed.isEmpty()) {
+            return selectedFile;
+        }
+        if ((typed.startsWith("\"") && typed.endsWith("\"")) || (typed.startsWith("'") && typed.endsWith("'"))) {
+            typed = typed.substring(1, typed.length() - 1);
+        }
+        if (typed.equals("~")) {
+            typed = System.getProperty("user.home");
+        } else if (typed.startsWith("~/")) {
+            typed = System.getProperty("user.home") + typed.substring(1);
+        }
+        return new File(typed);
+    }
+
+    private String describePlan(File file) {
+        if (file.isDirectory()) {
+            return "folder scan: run.sh, start scripts, npm start/dev, Gradle/Maven, Cargo, Go, Python, Node, Java";
+        }
+        String lower = file.getName().toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".java")) {
+            return "javac file.java, then java ClassName";
+        }
+        if (lower.endsWith(".class")) {
+            return "java ClassName";
+        }
+        if (lower.endsWith(".jar")) {
+            return "java -jar file.jar";
+        }
+        if (lower.endsWith(".sh") || lower.endsWith(".command")) {
+            return "sh script";
+        }
+        if (lower.endsWith(".py")) {
+            return "python3 script";
+        }
+        if (lower.endsWith(".js")) {
+            return "node script";
+        }
+        if (lower.endsWith(".rb")) {
+            return "ruby script";
+        }
+        if (lower.endsWith(".go")) {
+            return "go run file.go";
+        }
+        if (file.canExecute()) {
+            return "run executable directly";
+        }
+        return "unknown extension";
+    }
+
+    private String className(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        return dot > 0 ? fileName.substring(0, dot) : fileName;
+    }
+
+    private String extension(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        return dot >= 0 && dot + 1 < fileName.length() ? fileName.substring(dot + 1) : "unknown";
+    }
+
+    private File child(File folder, String name) {
+        return new File(folder, name);
+    }
+}
+
+class TerminalFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JTextArea output = new JTextArea();
+    private final JTextField input = new JTextField();
+    private final JLabel status = new JLabel(" ");
+    private File workingDirectory = new File(System.getProperty("user.home"));
+
+    TerminalFrame() {
+        super("Terminal", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(720, 420);
+        setMinimumSize(new Dimension(520, 320));
+        setLocation(300, 170);
+
+        output.setEditable(false);
+        output.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        output.setBackground(Color.BLACK);
+        output.setForeground(new Color(216, 216, 196));
+        output.setCaretColor(Color.WHITE);
+        output.setText("Mactonish Terminal\nType commands below. Use cd to change folders.\n\n");
+
+        input.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        input.setBackground(PAPER);
+        input.setForeground(INK);
+        input.addActionListener(event -> runCommand());
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+        updateStatus();
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(6, 6));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" TERMINAL ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel commandBar = new JPanel(new BorderLayout(6, 0));
+        commandBar.setBackground(PAPER);
+        commandBar.setBorder(BorderFactory.createEmptyBorder(0, 6, 6, 6));
+        commandBar.add(new JLabel(" $ "), BorderLayout.WEST);
+        commandBar.add(input, BorderLayout.CENTER);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        JPanel bottom = new JPanel(new BorderLayout(0, 4));
+        bottom.setBackground(PAPER);
+        bottom.add(commandBar, BorderLayout.CENTER);
+        bottom.add(status, BorderLayout.SOUTH);
+
+        root.add(title, BorderLayout.NORTH);
+        root.add(new JScrollPane(output), BorderLayout.CENTER);
+        root.add(bottom, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu terminal = new JMenu("Terminal");
+        JMenuItem clear = new JMenuItem("Clear");
+        clear.addActionListener(event -> output.setText(""));
+        JMenuItem home = new JMenuItem("Go Home");
+        home.addActionListener(event -> {
+            workingDirectory = new File(System.getProperty("user.home"));
+            updateStatus();
+        });
+        terminal.add(clear);
+        terminal.add(home);
+        menuBar.add(terminal);
+        return menuBar;
+    }
+
+    private void runCommand() {
+        String command = input.getText().trim();
+        input.setText("");
+        if (command.isEmpty()) {
+            return;
+        }
+        output.append("$ " + command + "\n");
+        if (command.equals("clear")) {
+            output.setText("");
+            return;
+        }
+        if (command.equals("pwd")) {
+            output.append(workingDirectory.getAbsolutePath() + "\n");
+            scrollOutput();
+            return;
+        }
+        if (command.equals("exit")) {
+            dispose();
+            return;
+        }
+        if (command.startsWith("cd")) {
+            changeDirectory(command);
+            return;
+        }
+
+        input.setEnabled(false);
+        new SwingWorker<Integer, String>() {
+            protected Integer doInBackground() throws Exception {
+                ProcessBuilder builder = new ProcessBuilder("sh", "-c", command);
+                builder.directory(workingDirectory);
+                builder.redirectErrorStream(true);
+                Process process = builder.start();
+                String text = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                if (!text.isEmpty()) {
+                    publish(text);
+                    if (!text.endsWith("\n")) {
+                        publish("\n");
+                    }
+                }
+                return process.waitFor();
+            }
+
+            protected void process(List<String> chunks) {
+                for (String chunk : chunks) {
+                    output.append(chunk);
+                }
+                scrollOutput();
+            }
+
+            protected void done() {
+                try {
+                    output.append("[exit " + get() + "]\n");
+                } catch (Exception exception) {
+                    output.append("[failed: " + exception.getMessage() + "]\n");
+                }
+                input.setEnabled(true);
+                input.requestFocusInWindow();
+                scrollOutput();
+            }
+        }.execute();
+    }
+
+    private void changeDirectory(String command) {
+        String target = command.length() > 2 ? command.substring(2).trim() : "~";
+        if ((target.startsWith("\"") && target.endsWith("\"")) || (target.startsWith("'") && target.endsWith("'"))) {
+            target = target.substring(1, target.length() - 1);
+        }
+        File next;
+        if (target.equals("~")) {
+            next = new File(System.getProperty("user.home"));
+        } else if (target.startsWith("~/")) {
+            next = new File(System.getProperty("user.home") + target.substring(1));
+        } else {
+            next = new File(target);
+            if (!next.isAbsolute()) {
+                next = new File(workingDirectory, target);
+            }
+        }
+        if (next.exists() && next.isDirectory()) {
+            workingDirectory = next;
+            updateStatus();
+        } else {
+            output.append("cd: no such directory: " + target + "\n");
+        }
+        scrollOutput();
+    }
+
+    private void updateStatus() {
+        status.setText("  cwd: " + workingDirectory.getAbsolutePath());
+    }
+
+    private void scrollOutput() {
+        output.setCaretPosition(output.getDocument().getLength());
+    }
+}
+
+class NotepadFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JFileChooser chooser = new JFileChooser();
+    private final JTextArea text = new JTextArea();
+    private final JLabel status = new JLabel(" untitled ");
+    private File currentFile;
+    private boolean dirty;
+    private boolean loading;
+
+    NotepadFrame() {
+        super("Notepad", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(640, 460);
+        setMinimumSize(new Dimension(460, 320));
+        setLocation(350, 210);
+
+        text.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        text.setBackground(PAPER);
+        text.setForeground(INK);
+        text.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent event) {
+                markDirty();
+            }
+
+            public void removeUpdate(DocumentEvent event) {
+                markDirty();
+            }
+
+            public void changedUpdate(DocumentEvent event) {
+                markDirty();
+            }
+        });
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" NOTEPAD ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(title, BorderLayout.NORTH);
+        root.add(new JScrollPane(text), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu file = new JMenu("File");
+        JMenuItem fresh = new JMenuItem("New");
+        fresh.addActionListener(event -> newNote());
+        JMenuItem open = new JMenuItem("Open...");
+        open.addActionListener(event -> openNote());
+        JMenuItem save = new JMenuItem("Save");
+        save.addActionListener(event -> saveNote());
+        JMenuItem saveAs = new JMenuItem("Save As...");
+        saveAs.addActionListener(event -> saveNoteAs());
+        file.add(fresh);
+        file.add(open);
+        file.add(save);
+        file.add(saveAs);
+        menuBar.add(file);
+        return menuBar;
+    }
+
+    private void newNote() {
+        if (!confirmDiscard()) {
+            return;
+        }
+        loading = true;
+        text.setText("");
+        currentFile = null;
+        dirty = false;
+        status.setText(" untitled ");
+        loading = false;
+    }
+
+    private void openNote() {
+        if (!confirmDiscard()) {
+            return;
+        }
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try {
+                currentFile = chooser.getSelectedFile();
+                loading = true;
+                text.setText(Files.readString(currentFile.toPath(), StandardCharsets.UTF_8));
+                text.setCaretPosition(0);
+                dirty = false;
+                status.setText(" " + currentFile.getAbsolutePath() + " ");
+            } catch (IOException exception) {
+                JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "Notepad", JOptionPane.ERROR_MESSAGE);
+            } finally {
+                loading = false;
+            }
+        }
+    }
+
+    private void saveNote() {
+        if (currentFile == null) {
+            saveNoteAs();
+            return;
+        }
+        try {
+            Files.writeString(currentFile.toPath(), text.getText(), StandardCharsets.UTF_8);
+            dirty = false;
+            status.setText(" " + currentFile.getAbsolutePath() + " saved ");
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Notepad", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void saveNoteAs() {
+        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            currentFile = chooser.getSelectedFile();
+            saveNote();
+        }
+    }
+
+    private void markDirty() {
+        if (!loading) {
+            dirty = true;
+            status.setText((currentFile == null ? " untitled" : " " + currentFile.getAbsolutePath()) + " modified ");
+        }
+    }
+
+    private boolean confirmDiscard() {
+        if (!dirty) {
+            return true;
+        }
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Discard unsaved Notepad changes?",
+                "Notepad",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        return choice == JOptionPane.YES_OPTION;
+    }
+}
+
+class AppCreatorFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JFileChooser chooser = new JFileChooser();
+    private final JTextField nameField = new JTextField("MyApp");
+    private final JTextField folderField = new JTextField(new File(System.getProperty("user.home"), "MactonishApps").getAbsolutePath());
+    private final JComboBox<String> languageBox = new JComboBox<>(new String[]{"Java", "Rust"});
+    private final JTextArea output = new JTextArea();
+    private final JLabel status = new JLabel(" ready ");
+
+    AppCreatorFrame() {
+        super("App Maker", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(660, 430);
+        setMinimumSize(new Dimension(500, 330));
+        setLocation(390, 250);
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+
+        nameField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        folderField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        output.setEditable(false);
+        output.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        output.setBackground(Color.BLACK);
+        output.setForeground(new Color(216, 216, 196));
+        output.setText("App Maker creates runnable Java or Rust app folders.\nGenerated folders include run.sh for P-Run.\n");
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" APP MAKER ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel form = new JPanel(new BorderLayout(6, 6));
+        form.setBackground(PAPER);
+        form.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        JPanel fields = new JPanel(new java.awt.GridLayout(3, 2, 6, 6));
+        fields.setBackground(PAPER);
+        fields.add(new JLabel(" App name "));
+        fields.add(nameField);
+        fields.add(new JLabel(" Language "));
+        fields.add(languageBox);
+        fields.add(new JLabel(" Create in "));
+        fields.add(folderField);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("Choose Folder...", this::chooseFolder));
+        buttons.add(retroButton("Create App", this::createApp));
+        buttons.add(retroButton("Clear", () -> output.setText("")));
+
+        form.add(fields, BorderLayout.CENTER);
+        form.add(buttons, BorderLayout.SOUTH);
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(form, BorderLayout.CENTER);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(output), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu app = new JMenu("App");
+        JMenuItem create = new JMenuItem("Create App");
+        create.addActionListener(event -> createApp());
+        JMenuItem close = new JMenuItem("Close");
+        close.addActionListener(event -> dispose());
+        app.add(create);
+        app.add(close);
+        menuBar.add(app);
+        return menuBar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void chooseFolder() {
+        File current = new File(folderField.getText().trim());
+        if (current.exists()) {
+            chooser.setCurrentDirectory(current);
+        }
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            folderField.setText(chooser.getSelectedFile().getAbsolutePath());
+        }
+    }
+
+    private void createApp() {
+        String appName = sanitizeName(nameField.getText());
+        if (appName.isBlank()) {
+            Toolkit.getDefaultToolkit().beep();
+            output.append("\nApp name is empty.\n");
+            return;
+        }
+
+        File parent = resolveFolder(folderField.getText().trim());
+        File appFolder = new File(parent, appName);
+        if (appFolder.exists()) {
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "That folder already exists. Add/replace starter files inside it?",
+                    "App Maker",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+            if (choice != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        try {
+            Files.createDirectories(appFolder.toPath());
+            if ("Rust".equals(languageBox.getSelectedItem())) {
+                createRustApp(appFolder, appName);
+            } else {
+                createJavaApp(appFolder, appName);
+            }
+            status.setText(" created ");
+            output.append("\nCreated " + languageBox.getSelectedItem() + " app:\n");
+            output.append(appFolder.getAbsolutePath() + "\n");
+            output.append("Run it with P-Run by choosing that folder, or from Terminal:\n");
+            output.append("cd \"" + appFolder.getAbsolutePath() + "\" && ./run.sh\n");
+        } catch (IOException exception) {
+            status.setText(" failed ");
+            JOptionPane.showMessageDialog(this, "Create failed:\n" + exception.getMessage(), "App Maker", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void createJavaApp(File folder, String appName) throws IOException {
+        String className = toJavaClassName(appName);
+        write(new File(folder, className + ".java"), """
+                public class %s {
+                    public static void main(String[] args) {
+                        System.out.println("Hello from %s!");
+                    }
+                }
+                """.formatted(className, appName));
+        write(new File(folder, "run.sh"), """
+                #!/usr/bin/env sh
+                set -eu
+
+                javac %s.java
+                java %s
+                """.formatted(className, className));
+        write(new File(folder, "README.txt"), """
+                %s
+
+                A Java app made with Mactonish App Maker.
+                Run with ./run.sh or choose this folder in P-Run.
+                """.formatted(appName));
+        new File(folder, "run.sh").setExecutable(true);
+    }
+
+    private void createRustApp(File folder, String appName) throws IOException {
+        File src = new File(folder, "src");
+        Files.createDirectories(src.toPath());
+        write(new File(folder, "Cargo.toml"), """
+                [package]
+                name = "%s"
+                version = "0.1.0"
+                edition = "2021"
+
+                [dependencies]
+                """.formatted(toRustPackageName(appName)));
+        write(new File(src, "main.rs"), """
+                fn main() {
+                    println!("Hello from %s!");
+                }
+                """.formatted(appName));
+        write(new File(folder, "run.sh"), """
+                #!/usr/bin/env sh
+                set -eu
+
+                cargo run
+                """);
+        write(new File(folder, "README.txt"), """
+                %s
+
+                A Rust app made with Mactonish App Maker.
+                Run with ./run.sh, cargo run, or choose this folder in P-Run.
+                """.formatted(appName));
+        new File(folder, "run.sh").setExecutable(true);
+    }
+
+    private void write(File file, String content) throws IOException {
+        Files.writeString(file.toPath(), content, StandardCharsets.UTF_8);
+    }
+
+    private File resolveFolder(String typed) {
+        if (typed.isBlank() || typed.equals("~")) {
+            return new File(System.getProperty("user.home"));
+        }
+        if (typed.startsWith("~/")) {
+            return new File(System.getProperty("user.home") + typed.substring(1));
+        }
+        return new File(typed);
+    }
+
+    private String sanitizeName(String value) {
+        return value.trim().replaceAll("[^A-Za-z0-9_-]", "_");
+    }
+
+    private String toJavaClassName(String value) {
+        StringBuilder builder = new StringBuilder();
+        for (String part : value.split("[^A-Za-z0-9]+")) {
+            if (part.isBlank()) {
+                continue;
+            }
+            builder.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                builder.append(part.substring(1));
+            }
+        }
+        if (builder.isEmpty() || !Character.isJavaIdentifierStart(builder.charAt(0))) {
+            builder.insert(0, "App");
+        }
+        return builder.toString();
+    }
+
+    private String toRustPackageName(String value) {
+        String name = value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "-");
+        while (name.contains("--")) {
+            name = name.replace("--", "-");
+        }
+        if (name.isBlank() || !Character.isLetter(name.charAt(0))) {
+            name = "app-" + name;
+        }
+        return name;
+    }
+}
+
+class FinderFrame extends JInternalFrame {
     private static final Color PAPER = new Color(238, 238, 226);
     private static final Color INK = Color.BLACK;
     private static final Color SHADE = new Color(184, 184, 176);
@@ -90,11 +1250,11 @@ class FinderFrame extends JFrame {
     private boolean loadingEditor;
 
     FinderFrame() {
-        super("EMF Finder 1984");
-        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        super("Finder", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(900, 560));
         setSize(1080, 680);
-        setLocationRelativeTo(null);
+        setLocation(150, 82);
 
         chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         installMenu();

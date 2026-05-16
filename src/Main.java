@@ -95,6 +95,10 @@ class DesktopFrame extends JFrame {
     private AppCreatorFrame appCreator;
     private FileEditorFrame fileEditor;
     private BrowserFrame browser;
+    private CalculatorFrame calculator;
+    private ClockFrame clock;
+    private SystemInfoFrame systemInfo;
+    private HelpFrame help;
 
     DesktopFrame() {
         super("Mactonish System");
@@ -115,6 +119,10 @@ class DesktopFrame extends JFrame {
         addDesktopIcon("App Maker", 34, 434, this::openAppCreator);
         addDesktopIcon("File Edit", 34, 534, this::openFileEditor);
         addDesktopIcon("Browser", 34, 634, this::openBrowser);
+        addDesktopIcon("Calculator", 140, 34, this::openCalculator);
+        addDesktopIcon("Clock", 140, 134, this::openClock);
+        addDesktopIcon("Sys Info", 140, 234, this::openSystemInfo);
+        addDesktopIcon("Help", 140, 334, this::openHelp);
         addDeskPlate();
         openFinder();
     }
@@ -128,7 +136,7 @@ class DesktopFrame extends JFrame {
         JMenuItem about = new JMenuItem("About This Computer");
         about.addActionListener(event -> JOptionPane.showMessageDialog(
                 this,
-                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, and Browser are built in.",
+                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Browser, Calculator, Clock, Sys Info, and Help are built in.",
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));
@@ -152,6 +160,14 @@ class DesktopFrame extends JFrame {
         fileEditorItem.addActionListener(event -> openFileEditor());
         JMenuItem browserItem = new JMenuItem("Browser");
         browserItem.addActionListener(event -> openBrowser());
+        JMenuItem calculatorItem = new JMenuItem("Calculator");
+        calculatorItem.addActionListener(event -> openCalculator());
+        JMenuItem clockItem = new JMenuItem("Clock");
+        clockItem.addActionListener(event -> openClock());
+        JMenuItem systemInfoItem = new JMenuItem("Sys Info");
+        systemInfoItem.addActionListener(event -> openSystemInfo());
+        JMenuItem helpItem = new JMenuItem("Help");
+        helpItem.addActionListener(event -> openHelp());
         apps.add(finderItem);
         apps.add(pRunItem);
         apps.add(terminalItem);
@@ -159,6 +175,10 @@ class DesktopFrame extends JFrame {
         apps.add(appCreatorItem);
         apps.add(fileEditorItem);
         apps.add(browserItem);
+        apps.add(calculatorItem);
+        apps.add(clockItem);
+        apps.add(systemInfoItem);
+        apps.add(helpItem);
 
         JMenu view = new JMenu("Desktop");
         JMenuItem arrange = new JMenuItem("Clean Up Icons");
@@ -293,6 +313,62 @@ class DesktopFrame extends JFrame {
             browser.setIcon(false);
             browser.moveToFront();
             browser.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openCalculator() {
+        try {
+            if (calculator == null || calculator.isClosed()) {
+                calculator = new CalculatorFrame();
+                desktop.add(calculator, JLayeredPane.PALETTE_LAYER);
+                calculator.setVisible(true);
+            }
+            calculator.setIcon(false);
+            calculator.moveToFront();
+            calculator.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openClock() {
+        try {
+            if (clock == null || clock.isClosed()) {
+                clock = new ClockFrame();
+                desktop.add(clock, JLayeredPane.PALETTE_LAYER);
+                clock.setVisible(true);
+            }
+            clock.setIcon(false);
+            clock.moveToFront();
+            clock.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openSystemInfo() {
+        try {
+            if (systemInfo == null || systemInfo.isClosed()) {
+                systemInfo = new SystemInfoFrame();
+                desktop.add(systemInfo, JLayeredPane.PALETTE_LAYER);
+                systemInfo.setVisible(true);
+            }
+            systemInfo.setIcon(false);
+            systemInfo.moveToFront();
+            systemInfo.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openHelp() {
+        try {
+            if (help == null || help.isClosed()) {
+                help = new HelpFrame();
+                desktop.add(help, JLayeredPane.PALETTE_LAYER);
+                help.setVisible(true);
+            }
+            help.setIcon(false);
+            help.moveToFront();
+            help.setSelected(true);
         } catch (Exception ignored) {
         }
     }
@@ -2279,5 +2355,246 @@ record FileNode(String label, File file) {
 class PlaceholderNode {
     public String toString() {
         return "Loading...";
+    }
+}
+
+class CalculatorFrame extends JInternalFrame {
+    private final JTextField display = new JTextField();
+
+    CalculatorFrame() {
+        super("Calculator", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(300, 360);
+        setLocation(520, 210);
+
+        display.setFont(new Font(Font.MONOSPACED, Font.BOLD, 18));
+        display.setHorizontalAlignment(JTextField.RIGHT);
+        display.addActionListener(event -> calculate());
+
+        JPanel buttons = new JPanel(new java.awt.GridLayout(5, 4, 4, 4));
+        String[] labels = {"7", "8", "9", "/", "4", "5", "6", "*", "1", "2", "3", "-", "0", ".", "=", "+", "C", "(", ")", "Del"};
+        for (String label : labels) {
+            JButton button = new JButton(label);
+            button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
+            button.addActionListener(event -> press(label));
+            buttons.add(button);
+        }
+
+        JPanel root = new JPanel(new BorderLayout(6, 6));
+        root.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        root.add(display, BorderLayout.NORTH);
+        root.add(buttons, BorderLayout.CENTER);
+        setContentPane(root);
+    }
+
+    private void press(String label) {
+        if (label.equals("C")) {
+            display.setText("");
+        } else if (label.equals("Del")) {
+            String text = display.getText();
+            display.setText(text.isEmpty() ? "" : text.substring(0, text.length() - 1));
+        } else if (label.equals("=")) {
+            calculate();
+        } else {
+            display.setText(display.getText() + label);
+        }
+    }
+
+    private void calculate() {
+        try {
+            display.setText(Double.toString(new ExpressionParser(display.getText()).parse()));
+        } catch (RuntimeException exception) {
+            display.setText("Error");
+        }
+    }
+
+    static class ExpressionParser {
+        private final String text;
+        private int index;
+
+        ExpressionParser(String text) {
+            this.text = text.replace(" ", "");
+        }
+
+        double parse() {
+            double value = expression();
+            if (index != text.length()) {
+                throw new IllegalArgumentException();
+            }
+            return value;
+        }
+
+        private double expression() {
+            double value = term();
+            while (index < text.length()) {
+                char operator = text.charAt(index);
+                if (operator != '+' && operator != '-') {
+                    return value;
+                }
+                index++;
+                value = operator == '+' ? value + term() : value - term();
+            }
+            return value;
+        }
+
+        private double term() {
+            double value = factor();
+            while (index < text.length()) {
+                char operator = text.charAt(index);
+                if (operator != '*' && operator != '/') {
+                    return value;
+                }
+                index++;
+                value = operator == '*' ? value * factor() : value / factor();
+            }
+            return value;
+        }
+
+        private double factor() {
+            if (index < text.length() && text.charAt(index) == '(') {
+                index++;
+                double value = expression();
+                if (index >= text.length() || text.charAt(index) != ')') {
+                    throw new IllegalArgumentException();
+                }
+                index++;
+                return value;
+            }
+            int start = index;
+            if (index < text.length() && (text.charAt(index) == '+' || text.charAt(index) == '-')) {
+                index++;
+            }
+            while (index < text.length() && (Character.isDigit(text.charAt(index)) || text.charAt(index) == '.')) {
+                index++;
+            }
+            return Double.parseDouble(text.substring(start, index));
+        }
+    }
+}
+
+class ClockFrame extends JInternalFrame {
+    private final JLabel time = new JLabel("", JLabel.CENTER);
+    private final JLabel date = new JLabel("", JLabel.CENTER);
+
+    ClockFrame() {
+        super("Clock", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(360, 180);
+        setLocation(560, 250);
+
+        time.setFont(new Font(Font.MONOSPACED, Font.BOLD, 32));
+        date.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 14));
+        JPanel root = new JPanel(new java.awt.GridLayout(2, 1));
+        root.setBorder(BorderFactory.createLineBorder(Color.BLACK, 3));
+        root.add(time);
+        root.add(date);
+        setContentPane(root);
+        tick();
+        new javax.swing.Timer(1000, event -> tick()).start();
+    }
+
+    private void tick() {
+        Date now = new Date();
+        time.setText(DateFormat.getTimeInstance(DateFormat.MEDIUM).format(now));
+        date.setText(DateFormat.getDateInstance(DateFormat.FULL).format(now));
+    }
+}
+
+class SystemInfoFrame extends JInternalFrame {
+    private final JTextArea info = new JTextArea();
+
+    SystemInfoFrame() {
+        super("Sys Info", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(560, 420);
+        setLocation(590, 290);
+        info.setEditable(false);
+        info.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        setContentPane(new JScrollPane(info));
+        refresh();
+        setJMenuBar(menu());
+    }
+
+    private JMenuBar menu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu menu = new JMenu("System");
+        JMenuItem refresh = new JMenuItem("Refresh");
+        refresh.addActionListener(event -> refresh());
+        menu.add(refresh);
+        bar.add(menu);
+        return bar;
+    }
+
+    private void refresh() {
+        Runtime runtime = Runtime.getRuntime();
+        File home = new File(System.getProperty("user.home"));
+        info.setText("""
+                Mactonish System Information
+
+                Java: %s
+                JVM: %s
+                OS: %s %s
+                User: %s
+                Home: %s
+                Working Dir: %s
+
+                Memory Used: %s
+                Memory Free: %s
+                Memory Max: %s
+                CPU Cores: %d
+
+                Home Free Space: %s
+                Home Total Space: %s
+                """.formatted(
+                System.getProperty("java.version"),
+                System.getProperty("java.vm.name"),
+                System.getProperty("os.name"),
+                System.getProperty("os.version"),
+                System.getProperty("user.name"),
+                home.getAbsolutePath(),
+                new File(".").getAbsolutePath(),
+                FileTableModel.formatSize(runtime.totalMemory() - runtime.freeMemory()),
+                FileTableModel.formatSize(runtime.freeMemory()),
+                FileTableModel.formatSize(runtime.maxMemory()),
+                runtime.availableProcessors(),
+                FileTableModel.formatSize(home.getFreeSpace()),
+                FileTableModel.formatSize(home.getTotalSpace())
+        ));
+    }
+}
+
+class HelpFrame extends JInternalFrame {
+    HelpFrame() {
+        super("Help", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(620, 460);
+        setLocation(620, 330);
+        JTextArea help = new JTextArea();
+        help.setEditable(false);
+        help.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        help.setText("""
+                Mactonish Help
+
+                Finder      Browse files and edit text/code in built-in NANO.
+                P-Run       Run files or project folders by extension/signature.
+                Terminal    Run shell commands. Use cd, pwd, clear, exit.
+                Notepad     Write quick notes and save text files.
+                App Maker   Create runnable Java or Rust app folders.
+                File Edit   Open a text file by chooser/path and edit it.
+                Browser     Browse simple HTML/search; use Open External for JS.
+                Calculator  Basic arithmetic with parentheses.
+                Clock       Local date and time.
+                Sys Info    Java, OS, memory, CPU, and disk information.
+
+                Tips
+
+                - P-Run understands run.sh, package.json, Cargo.toml, go.mod,
+                  Gradle/Maven files, Python/Node entry files, Java files, and
+                  executable files.
+                - App Maker projects include run.sh so P-Run can launch them.
+                - Browser is intentionally lightweight. Modern web apps need
+                  Open External.
+                """);
+        setContentPane(new JScrollPane(help));
     }
 }

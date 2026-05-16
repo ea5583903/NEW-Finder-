@@ -3,7 +3,9 @@ import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
 import javax.swing.InputMap;
 import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JDesktopPane;
 import javax.swing.JFileChooser;
@@ -16,6 +18,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
@@ -37,29 +40,45 @@ import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import java.awt.BorderLayout;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.Toolkit;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.security.spec.KeySpec;
+import java.security.GeneralSecurityException;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+import javax.imageio.ImageIO;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.Synthesizer;
@@ -97,6 +116,10 @@ class DesktopFrame extends JFrame {
     private SystemInfoFrame systemInfo;
     private HelpFrame help;
     private SshPhpFrame sshPhp;
+    private PasswordVaultFrame passwordVault;
+    private ImageViewerFrame imageViewer;
+    private PaintFrame paint;
+    private RemindersFrame reminders;
 
     DesktopFrame() {
         super("Mactonish System");
@@ -122,6 +145,10 @@ class DesktopFrame extends JFrame {
         addDesktopIcon("Sys Info", 140, 234, this::openSystemInfo);
         addDesktopIcon("Help", 140, 334, this::openHelp);
         addDesktopIcon("SSH", 140, 434, this::openSshPhp);
+        addDesktopIcon("Vault", 140, 534, this::openPasswordVault);
+        addDesktopIcon("Images", 246, 34, this::openImageViewer);
+        addDesktopIcon("Paint", 246, 134, this::openPaint);
+        addDesktopIcon("Reminders", 246, 234, this::openReminders);
         addDeskPlate();
         openFinder();
     }
@@ -135,7 +162,7 @@ class DesktopFrame extends JFrame {
         JMenuItem about = new JMenuItem("About This Computer");
         about.addActionListener(event -> JOptionPane.showMessageDialog(
                 this,
-                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, and SSH Connect are built in.",
+                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, and Reminders are built in.",
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));
@@ -169,6 +196,14 @@ class DesktopFrame extends JFrame {
         helpItem.addActionListener(event -> openHelp());
         JMenuItem sshItem = new JMenuItem("SSH Connect");
         sshItem.addActionListener(event -> openSshPhp());
+        JMenuItem vaultItem = new JMenuItem("Password Vault");
+        vaultItem.addActionListener(event -> openPasswordVault());
+        JMenuItem imagesItem = new JMenuItem("Image Viewer");
+        imagesItem.addActionListener(event -> openImageViewer());
+        JMenuItem paintItem = new JMenuItem("Paint");
+        paintItem.addActionListener(event -> openPaint());
+        JMenuItem remindersItem = new JMenuItem("Reminders");
+        remindersItem.addActionListener(event -> openReminders());
         apps.add(finderItem);
         apps.add(pRunItem);
         apps.add(terminalItem);
@@ -181,6 +216,10 @@ class DesktopFrame extends JFrame {
         apps.add(systemInfoItem);
         apps.add(helpItem);
         apps.add(sshItem);
+        apps.add(vaultItem);
+        apps.add(imagesItem);
+        apps.add(paintItem);
+        apps.add(remindersItem);
 
         JMenu view = new JMenu("Desktop");
         JMenuItem arrange = new JMenuItem("Clean Up Icons");
@@ -385,6 +424,62 @@ class DesktopFrame extends JFrame {
             sshPhp.setIcon(false);
             sshPhp.moveToFront();
             sshPhp.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openPasswordVault() {
+        try {
+            if (passwordVault == null || passwordVault.isClosed()) {
+                passwordVault = new PasswordVaultFrame();
+                desktop.add(passwordVault, JLayeredPane.PALETTE_LAYER);
+                passwordVault.setVisible(true);
+            }
+            passwordVault.setIcon(false);
+            passwordVault.moveToFront();
+            passwordVault.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openImageViewer() {
+        try {
+            if (imageViewer == null || imageViewer.isClosed()) {
+                imageViewer = new ImageViewerFrame();
+                desktop.add(imageViewer, JLayeredPane.PALETTE_LAYER);
+                imageViewer.setVisible(true);
+            }
+            imageViewer.setIcon(false);
+            imageViewer.moveToFront();
+            imageViewer.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openPaint() {
+        try {
+            if (paint == null || paint.isClosed()) {
+                paint = new PaintFrame();
+                desktop.add(paint, JLayeredPane.PALETTE_LAYER);
+                paint.setVisible(true);
+            }
+            paint.setIcon(false);
+            paint.moveToFront();
+            paint.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openReminders() {
+        try {
+            if (reminders == null || reminders.isClosed()) {
+                reminders = new RemindersFrame();
+                desktop.add(reminders, JLayeredPane.PALETTE_LAYER);
+                reminders.setVisible(true);
+            }
+            reminders.setIcon(false);
+            reminders.moveToFront();
+            reminders.setSelected(true);
         } catch (Exception ignored) {
         }
     }
@@ -2888,6 +2983,1017 @@ class SystemInfoFrame extends JInternalFrame {
     }
 }
 
+class PasswordVaultFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+    private static final File STORE = new File(new File(System.getProperty("user.home"), ".mactonish"), "vault.dat");
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private final JPasswordField masterField = new JPasswordField();
+    private final JLabel status = new JLabel(" locked ");
+    private final VaultTableModel model = new VaultTableModel();
+    private final JTable table = new JTable(model);
+    private final JCheckBox reveal = new JCheckBox("Reveal");
+    private char[] masterPassword;
+
+    PasswordVaultFrame() {
+        super("Password Vault", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(760, 440);
+        setMinimumSize(new Dimension(560, 320));
+        setLocation(420, 180);
+
+        masterField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        masterField.addActionListener(event -> unlock());
+        table.setEnabled(false);
+        table.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        table.setRowHeight(24);
+        reveal.setBackground(PAPER);
+        reveal.addActionListener(event -> model.setReveal(reveal.isSelected()));
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" PASSWORD VAULT ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel unlockBar = new JPanel(new BorderLayout(6, 0));
+        unlockBar.setBackground(PAPER);
+        unlockBar.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        unlockBar.add(new JLabel(" Master "), BorderLayout.WEST);
+        unlockBar.add(masterField, BorderLayout.CENTER);
+
+        JPanel unlockButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        unlockButtons.setBackground(PAPER);
+        unlockButtons.add(retroButton("Unlock", this::unlock));
+        unlockButtons.add(retroButton("Create Vault", this::createVault));
+        unlockButtons.add(retroButton("Lock", this::lock));
+        unlockBar.add(unlockButtons, BorderLayout.EAST);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
+        buttons.add(retroButton("Add", this::addEntry));
+        buttons.add(retroButton("Remove", this::removeEntry));
+        buttons.add(retroButton("Save", this::save));
+        buttons.add(reveal);
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(unlockBar, BorderLayout.CENTER);
+        top.add(buttons, BorderLayout.SOUTH);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(table), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu vault = new JMenu("Vault");
+        JMenuItem unlock = new JMenuItem("Unlock");
+        unlock.addActionListener(event -> unlock());
+        JMenuItem create = new JMenuItem("Create Vault");
+        create.addActionListener(event -> createVault());
+        JMenuItem save = new JMenuItem("Save");
+        save.addActionListener(event -> save());
+        JMenuItem lock = new JMenuItem("Lock");
+        lock.addActionListener(event -> lock());
+        vault.add(unlock);
+        vault.add(create);
+        vault.add(save);
+        vault.add(lock);
+        bar.add(vault);
+        return bar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void unlock() {
+        if (!STORE.exists() || STORE.length() == 0) {
+            createVault();
+            return;
+        }
+        char[] password = masterField.getPassword();
+        if (password.length == 0) {
+            Toolkit.getDefaultToolkit().beep();
+            status.setText(" enter master password ");
+            return;
+        }
+        try {
+            model.load(decrypt(Files.readString(STORE.toPath(), StandardCharsets.UTF_8), password));
+            status.setText(" unlocked " + model.getRowCount() + " entries ");
+            masterPassword = Arrays.copyOf(password, password.length);
+            table.setEnabled(true);
+            masterField.setText("");
+        } catch (Exception exception) {
+            JOptionPane.showMessageDialog(this, "Unlock failed. Check the master password.", "Password Vault", JOptionPane.ERROR_MESSAGE);
+        } finally {
+            Arrays.fill(password, '\0');
+        }
+    }
+
+    private void createVault() {
+        if (STORE.exists() && STORE.length() > 0) {
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "A vault already exists. Replace it with a new empty vault?",
+                    "Password Vault",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+            if (choice != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        JPasswordField first = new JPasswordField();
+        JPasswordField second = new JPasswordField();
+        first.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        second.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+
+        JPanel panel = new JPanel(new java.awt.GridLayout(2, 2, 6, 6));
+        panel.add(new JLabel("New master password"));
+        panel.add(first);
+        panel.add(new JLabel("Confirm password"));
+        panel.add(second);
+
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                panel,
+                "Create Password Vault",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+        if (choice != JOptionPane.OK_OPTION) {
+            clear(first.getPassword(), second.getPassword());
+            return;
+        }
+
+        char[] password = first.getPassword();
+        char[] confirm = second.getPassword();
+        try {
+            if (password.length == 0) {
+                Toolkit.getDefaultToolkit().beep();
+                status.setText(" password required ");
+                return;
+            }
+            if (!Arrays.equals(password, confirm)) {
+                Toolkit.getDefaultToolkit().beep();
+                JOptionPane.showMessageDialog(this, "Passwords do not match.", "Password Vault", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            model.load("");
+            masterPassword = Arrays.copyOf(password, password.length);
+            table.setEnabled(true);
+            reveal.setSelected(false);
+            model.setReveal(false);
+            masterField.setText("");
+            save();
+            status.setText(" new vault created ");
+        } finally {
+            clear(password, confirm);
+        }
+    }
+
+    private void save() {
+        if (masterPassword == null) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        try {
+            Files.createDirectories(STORE.getParentFile().toPath());
+            Files.writeString(STORE.toPath(), encrypt(model.dump(), masterPassword), StandardCharsets.UTF_8);
+            status.setText(" saved " + STORE.getAbsolutePath() + " ");
+        } catch (Exception exception) {
+            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Password Vault", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void lock() {
+        model.load("");
+        table.setEnabled(false);
+        if (masterPassword != null) {
+            Arrays.fill(masterPassword, '\0');
+        }
+        masterPassword = null;
+        status.setText(" locked ");
+    }
+
+    private void clear(char[]... values) {
+        for (char[] value : values) {
+            if (value != null) {
+                Arrays.fill(value, '\0');
+            }
+        }
+    }
+
+    private void addEntry() {
+        if (masterPassword == null) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        model.addEntry();
+    }
+
+    private void removeEntry() {
+        if (masterPassword == null || table.getSelectedRow() < 0) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        model.removeEntry(table.convertRowIndexToModel(table.getSelectedRow()));
+    }
+
+    private String encrypt(String plainText, char[] password) throws GeneralSecurityException {
+        byte[] salt = new byte[16];
+        byte[] nonce = new byte[12];
+        RANDOM.nextBytes(salt);
+        RANDOM.nextBytes(nonce);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, key(password, salt), new GCMParameterSpec(128, nonce));
+        byte[] cipherText = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
+        return "MVAULT1\n"
+                + Base64.getEncoder().encodeToString(salt) + "\n"
+                + Base64.getEncoder().encodeToString(nonce) + "\n"
+                + Base64.getEncoder().encodeToString(cipherText) + "\n";
+    }
+
+    private String decrypt(String stored, char[] password) throws GeneralSecurityException {
+        String[] parts = stored.split("\\R");
+        if (parts.length < 4 || !parts[0].equals("MVAULT1")) {
+            throw new GeneralSecurityException("Unknown vault format");
+        }
+        byte[] salt = Base64.getDecoder().decode(parts[1]);
+        byte[] nonce = Base64.getDecoder().decode(parts[2]);
+        byte[] cipherText = Base64.getDecoder().decode(parts[3]);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, key(password, salt), new GCMParameterSpec(128, nonce));
+        return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
+    }
+
+    private SecretKey key(char[] password, byte[] salt) throws GeneralSecurityException {
+        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        KeySpec spec = new PBEKeySpec(password, salt, 120_000, 256);
+        return new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
+    }
+
+    record VaultEntry(String service, String user, String password, String notes) {
+    }
+
+    static class VaultTableModel extends AbstractTableModel {
+        private static final String[] COLUMNS = {"Service", "User", "Password", "Notes"};
+        private final List<VaultEntry> entries = new ArrayList<>();
+        private boolean reveal;
+
+        public int getRowCount() {
+            return entries.size();
+        }
+
+        public int getColumnCount() {
+            return COLUMNS.length;
+        }
+
+        public String getColumnName(int column) {
+            return COLUMNS[column];
+        }
+
+        public boolean isCellEditable(int row, int column) {
+            return true;
+        }
+
+        public Object getValueAt(int row, int column) {
+            VaultEntry entry = entries.get(row);
+            return switch (column) {
+                case 0 -> entry.service();
+                case 1 -> entry.user();
+                case 2 -> reveal ? entry.password() : "********";
+                case 3 -> entry.notes();
+                default -> "";
+            };
+        }
+
+        public void setValueAt(Object value, int row, int column) {
+            VaultEntry old = entries.get(row);
+            String text = value == null ? "" : value.toString();
+            entries.set(row, switch (column) {
+                case 0 -> new VaultEntry(text, old.user(), old.password(), old.notes());
+                case 1 -> new VaultEntry(old.service(), text, old.password(), old.notes());
+                case 2 -> new VaultEntry(old.service(), old.user(), text, old.notes());
+                case 3 -> new VaultEntry(old.service(), old.user(), old.password(), text);
+                default -> old;
+            });
+            fireTableRowsUpdated(row, row);
+        }
+
+        void setReveal(boolean reveal) {
+            this.reveal = reveal;
+            fireTableDataChanged();
+        }
+
+        void addEntry() {
+            entries.add(new VaultEntry("", "", "", ""));
+            fireTableRowsInserted(entries.size() - 1, entries.size() - 1);
+        }
+
+        void removeEntry(int row) {
+            entries.remove(row);
+            fireTableRowsDeleted(row, row);
+        }
+
+        void load(String text) {
+            entries.clear();
+            for (String line : text.split("\\R")) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.split("\\t", -1);
+                entries.add(new VaultEntry(unpack(parts, 0), unpack(parts, 1), unpack(parts, 2), unpack(parts, 3)));
+            }
+            fireTableDataChanged();
+        }
+
+        String dump() {
+            StringBuilder out = new StringBuilder();
+            for (VaultEntry entry : entries) {
+                out.append(pack(entry.service())).append('\t')
+                        .append(pack(entry.user())).append('\t')
+                        .append(pack(entry.password())).append('\t')
+                        .append(pack(entry.notes())).append('\n');
+            }
+            return out.toString();
+        }
+
+        private static String pack(String value) {
+            return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+        }
+
+        private static String unpack(String[] parts, int index) {
+            if (index >= parts.length || parts[index].isEmpty()) {
+                return "";
+            }
+            return new String(Base64.getDecoder().decode(parts[index]), StandardCharsets.UTF_8);
+        }
+    }
+}
+
+class ImageViewerFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JFileChooser chooser = new JFileChooser();
+    private final JLabel imageLabel = new JLabel("Open an image.", JLabel.CENTER);
+    private final JLabel status = new JLabel(" no image ");
+    private BufferedImage image;
+    private File currentFile;
+    private double zoom = 1.0;
+
+    ImageViewerFrame() {
+        super("Image Viewer", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(760, 520);
+        setMinimumSize(new Dimension(520, 360));
+        setLocation(450, 210);
+        imageLabel.setOpaque(true);
+        imageLabel.setBackground(Color.WHITE);
+        imageLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" IMAGE VIEWER ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        buttons.add(retroButton("Open...", this::openImage));
+        buttons.add(retroButton("Fit", this::fit));
+        buttons.add(retroButton("100%", () -> setZoom(1.0)));
+        buttons.add(retroButton("+", () -> setZoom(zoom * 1.25)));
+        buttons.add(retroButton("-", () -> setZoom(zoom / 1.25)));
+        buttons.add(retroButton("Rotate", this::rotate));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(buttons, BorderLayout.CENTER);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(imageLabel), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu file = new JMenu("File");
+        JMenuItem open = new JMenuItem("Open...");
+        open.addActionListener(event -> openImage());
+        JMenuItem close = new JMenuItem("Close");
+        close.addActionListener(event -> dispose());
+        file.add(open);
+        file.add(close);
+        bar.add(file);
+        return bar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void openImage() {
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        try {
+            BufferedImage loaded = ImageIO.read(chooser.getSelectedFile());
+            if (loaded == null) {
+                throw new IOException("Unsupported image format");
+            }
+            image = loaded;
+            currentFile = chooser.getSelectedFile();
+            zoom = 1.0;
+            updateImage();
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "Image Viewer", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void fit() {
+        if (image == null) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        Dimension size = imageLabel.getParent().getSize();
+        double x = Math.max(0.1, (size.getWidth() - 24) / image.getWidth());
+        double y = Math.max(0.1, (size.getHeight() - 24) / image.getHeight());
+        setZoom(Math.min(x, y));
+    }
+
+    private void setZoom(double nextZoom) {
+        if (image == null) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        zoom = Math.max(0.1, Math.min(8.0, nextZoom));
+        updateImage();
+    }
+
+    private void rotate() {
+        if (image == null) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        BufferedImage rotated = new BufferedImage(image.getHeight(), image.getWidth(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = rotated.createGraphics();
+        g.translate(image.getHeight(), 0);
+        g.rotate(Math.PI / 2);
+        g.drawImage(image, 0, 0, null);
+        g.dispose();
+        image = rotated;
+        updateImage();
+    }
+
+    private void updateImage() {
+        int width = Math.max(1, (int) Math.round(image.getWidth() * zoom));
+        int height = Math.max(1, (int) Math.round(image.getHeight() * zoom));
+        BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = scaled.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(image, 0, 0, width, height, null);
+        g.dispose();
+        imageLabel.setText("");
+        imageLabel.setIcon(new ImageIcon(scaled));
+        status.setText(" " + currentFile.getName() + " " + image.getWidth() + "x" + image.getHeight() + " zoom " + Math.round(zoom * 100) + "% ");
+    }
+}
+
+class PaintFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JFileChooser chooser = new JFileChooser();
+    private final PaintCanvas canvas = new PaintCanvas();
+    private final JComboBox<String> colorBox = new JComboBox<>(new String[]{"Black", "Red", "Blue", "Green", "Yellow", "White"});
+    private final JComboBox<Integer> brushBox = new JComboBox<>(new Integer[]{2, 4, 8, 12, 20, 32});
+    private final JLabel status = new JLabel(" 640x360 ");
+
+    PaintFrame() {
+        super("Paint", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(760, 520);
+        setMinimumSize(new Dimension(560, 360));
+        setLocation(480, 240);
+        colorBox.addActionListener(event -> canvas.setPaintColor(selectedColor()));
+        brushBox.addActionListener(event -> canvas.setBrush((Integer) brushBox.getSelectedItem()));
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" PAINT ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel tools = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        tools.setBackground(PAPER);
+        tools.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        tools.add(retroButton("New", this::newCanvas));
+        tools.add(retroButton("Open...", this::openImage));
+        tools.add(retroButton("Save...", this::saveImage));
+        tools.add(new JLabel(" Color "));
+        tools.add(colorBox);
+        tools.add(new JLabel(" Brush "));
+        tools.add(brushBox);
+        tools.add(retroButton("Clear", canvas::clear));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(tools, BorderLayout.CENTER);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(canvas), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu file = new JMenu("File");
+        JMenuItem fresh = new JMenuItem("New");
+        fresh.addActionListener(event -> newCanvas());
+        JMenuItem open = new JMenuItem("Open...");
+        open.addActionListener(event -> openImage());
+        JMenuItem save = new JMenuItem("Save...");
+        save.addActionListener(event -> saveImage());
+        file.add(fresh);
+        file.add(open);
+        file.add(save);
+        bar.add(file);
+        return bar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void newCanvas() {
+        canvas.newImage(640, 360);
+        status.setText(" 640x360 new ");
+    }
+
+    private void openImage() {
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        try {
+            BufferedImage loaded = ImageIO.read(chooser.getSelectedFile());
+            if (loaded == null) {
+                throw new IOException("Unsupported image format");
+            }
+            canvas.setImage(loaded);
+            status.setText(" " + chooser.getSelectedFile().getName() + " " + loaded.getWidth() + "x" + loaded.getHeight() + " ");
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "Paint", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void saveImage() {
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File file = chooser.getSelectedFile();
+        if (!file.getName().toLowerCase(Locale.ROOT).endsWith(".png")) {
+            file = new File(file.getParentFile(), file.getName() + ".png");
+        }
+        try {
+            ImageIO.write(canvas.image(), "png", file);
+            status.setText(" saved " + file.getAbsolutePath() + " ");
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Paint", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private Color selectedColor() {
+        return switch ((String) colorBox.getSelectedItem()) {
+            case "Red" -> Color.RED;
+            case "Blue" -> Color.BLUE;
+            case "Green" -> new Color(0, 130, 40);
+            case "Yellow" -> Color.YELLOW;
+            case "White" -> Color.WHITE;
+            default -> Color.BLACK;
+        };
+    }
+
+    static class PaintCanvas extends JPanel {
+        private BufferedImage image;
+        private Color paintColor = Color.BLACK;
+        private int brush = 2;
+        private int lastX = -1;
+        private int lastY = -1;
+
+        PaintCanvas() {
+            setBackground(Color.LIGHT_GRAY);
+            newImage(640, 360);
+            MouseAdapter mouse = new MouseAdapter() {
+                public void mousePressed(MouseEvent event) {
+                    lastX = event.getX();
+                    lastY = event.getY();
+                    drawTo(lastX, lastY);
+                }
+
+                public void mouseDragged(MouseEvent event) {
+                    drawLine(event.getX(), event.getY());
+                }
+
+                public void mouseReleased(MouseEvent event) {
+                    lastX = -1;
+                    lastY = -1;
+                }
+            };
+            addMouseListener(mouse);
+            addMouseMotionListener(mouse);
+        }
+
+        void newImage(int width, int height) {
+            image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            clear();
+            setPreferredSize(new Dimension(width, height));
+            revalidate();
+        }
+
+        void setImage(BufferedImage loaded) {
+            image = new BufferedImage(loaded.getWidth(), loaded.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = image.createGraphics();
+            g.drawImage(loaded, 0, 0, null);
+            g.dispose();
+            setPreferredSize(new Dimension(image.getWidth(), image.getHeight()));
+            revalidate();
+            repaint();
+        }
+
+        BufferedImage image() {
+            return image;
+        }
+
+        void setPaintColor(Color paintColor) {
+            this.paintColor = paintColor;
+        }
+
+        void setBrush(int brush) {
+            this.brush = brush;
+        }
+
+        void clear() {
+            Graphics2D g = image.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, image.getWidth(), image.getHeight());
+            g.dispose();
+            repaint();
+        }
+
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            graphics.drawImage(image, 0, 0, null);
+        }
+
+        private void drawLine(int x, int y) {
+            Graphics2D g = image.createGraphics();
+            g.setColor(paintColor);
+            g.setStroke(new BasicStroke(brush, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawLine(lastX, lastY, x, y);
+            g.dispose();
+            lastX = x;
+            lastY = y;
+            repaint();
+        }
+
+        private void drawTo(int x, int y) {
+            Graphics2D g = image.createGraphics();
+            g.setColor(paintColor);
+            g.fillOval(x - brush / 2, y - brush / 2, brush, brush);
+            g.dispose();
+            repaint();
+        }
+    }
+}
+
+class RemindersFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+    private static final File STORE = new File(new File(System.getProperty("user.home"), ".mactonish"), "reminders.tsv");
+
+    private final ReminderTableModel model = new ReminderTableModel();
+    private final JTable table = new JTable(model);
+    private final JTextField taskField = new JTextField();
+    private final JTextField dueField = new JTextField();
+    private final JLabel status = new JLabel(" ");
+
+    RemindersFrame() {
+        super("Reminders", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(700, 430);
+        setMinimumSize(new Dimension(520, 320));
+        setLocation(510, 270);
+        table.setRowHeight(24);
+        table.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        taskField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        dueField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        taskField.addActionListener(event -> addReminder());
+        dueField.addActionListener(event -> addReminder());
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+        load();
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" REMINDERS ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel fields = new JPanel(new java.awt.GridLayout(2, 2, 6, 6));
+        fields.setBackground(PAPER);
+        fields.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        fields.add(new JLabel(" Task "));
+        fields.add(taskField);
+        fields.add(new JLabel(" Due "));
+        fields.add(dueField);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
+        buttons.add(retroButton("Add", this::addReminder));
+        buttons.add(retroButton("Remove", this::removeReminder));
+        buttons.add(retroButton("Save", this::save));
+        buttons.add(retroButton("Clear Done", this::clearDone));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(fields, BorderLayout.CENTER);
+        top.add(buttons, BorderLayout.SOUTH);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(table), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu reminders = new JMenu("Reminders");
+        JMenuItem add = new JMenuItem("Add");
+        add.addActionListener(event -> addReminder());
+        JMenuItem save = new JMenuItem("Save");
+        save.addActionListener(event -> save());
+        JMenuItem reload = new JMenuItem("Reload");
+        reload.addActionListener(event -> load());
+        reminders.add(add);
+        reminders.add(save);
+        reminders.add(reload);
+        bar.add(reminders);
+        return bar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void addReminder() {
+        String task = taskField.getText().trim();
+        if (task.isEmpty()) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        model.addReminder(new Reminder(false, task, dueField.getText().trim()));
+        taskField.setText("");
+        dueField.setText("");
+        save();
+    }
+
+    private void removeReminder() {
+        if (table.getSelectedRow() < 0) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        model.removeReminder(table.convertRowIndexToModel(table.getSelectedRow()));
+        save();
+    }
+
+    private void clearDone() {
+        model.clearDone();
+        save();
+    }
+
+    private void load() {
+        try {
+            if (STORE.exists()) {
+                model.load(Files.readString(STORE.toPath(), StandardCharsets.UTF_8));
+            }
+            status.setText(" loaded " + model.getRowCount() + " reminders ");
+        } catch (IOException exception) {
+            status.setText(" load failed ");
+        }
+    }
+
+    private void save() {
+        try {
+            Files.createDirectories(STORE.getParentFile().toPath());
+            Files.writeString(STORE.toPath(), model.dump(), StandardCharsets.UTF_8);
+            status.setText(" saved " + model.getRowCount() + " reminders ");
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Reminders", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    record Reminder(boolean done, String task, String due) {
+    }
+
+    static class ReminderTableModel extends AbstractTableModel {
+        private static final String[] COLUMNS = {"Done", "Task", "Due"};
+        private final List<Reminder> reminders = new ArrayList<>();
+
+        public int getRowCount() {
+            return reminders.size();
+        }
+
+        public int getColumnCount() {
+            return COLUMNS.length;
+        }
+
+        public String getColumnName(int column) {
+            return COLUMNS[column];
+        }
+
+        public Class<?> getColumnClass(int column) {
+            return column == 0 ? Boolean.class : String.class;
+        }
+
+        public boolean isCellEditable(int row, int column) {
+            return true;
+        }
+
+        public Object getValueAt(int row, int column) {
+            Reminder reminder = reminders.get(row);
+            return switch (column) {
+                case 0 -> reminder.done();
+                case 1 -> reminder.task();
+                case 2 -> reminder.due();
+                default -> "";
+            };
+        }
+
+        public void setValueAt(Object value, int row, int column) {
+            Reminder old = reminders.get(row);
+            reminders.set(row, switch (column) {
+                case 0 -> new Reminder(Boolean.TRUE.equals(value), old.task(), old.due());
+                case 1 -> new Reminder(old.done(), value == null ? "" : value.toString(), old.due());
+                case 2 -> new Reminder(old.done(), old.task(), value == null ? "" : value.toString());
+                default -> old;
+            });
+            fireTableRowsUpdated(row, row);
+        }
+
+        void addReminder(Reminder reminder) {
+            reminders.add(reminder);
+            fireTableRowsInserted(reminders.size() - 1, reminders.size() - 1);
+        }
+
+        void removeReminder(int row) {
+            reminders.remove(row);
+            fireTableRowsDeleted(row, row);
+        }
+
+        void clearDone() {
+            reminders.removeIf(Reminder::done);
+            fireTableDataChanged();
+        }
+
+        void load(String text) {
+            reminders.clear();
+            for (String line : text.split("\\R")) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.split("\\t", -1);
+                reminders.add(new Reminder(Boolean.parseBoolean(unpack(parts, 0)), unpack(parts, 1), unpack(parts, 2)));
+            }
+            fireTableDataChanged();
+        }
+
+        String dump() {
+            StringBuilder out = new StringBuilder();
+            for (Reminder reminder : reminders) {
+                out.append(pack(Boolean.toString(reminder.done()))).append('\t')
+                        .append(pack(reminder.task())).append('\t')
+                        .append(pack(reminder.due())).append('\n');
+            }
+            return out.toString();
+        }
+
+        private static String pack(String value) {
+            return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+        }
+
+        private static String unpack(String[] parts, int index) {
+            if (index >= parts.length || parts[index].isEmpty()) {
+                return "";
+            }
+            return new String(Base64.getDecoder().decode(parts[index]), StandardCharsets.UTF_8);
+        }
+    }
+}
+
 class HelpFrame extends JInternalFrame {
     HelpFrame() {
         super("Help", true, true, true, true);
@@ -2908,6 +4014,10 @@ class HelpFrame extends JInternalFrame {
                 File Edit   Open a text file by chooser/path and edit it.
                 Music Edit  Write note patterns, play them with MIDI, save songs.
                 SSH Connect Connect with ssh/scp through PHP inside this app.
+                Vault       Keep encrypted local passwords behind a master password.
+                Images      Open, zoom, fit, and rotate image files.
+                Paint       Draw simple PNG images with colors and brush sizes.
+                Reminders   Track tasks with due text and done checkboxes.
                 Calculator  Basic arithmetic with parentheses.
                 Clock       Local date and time.
                 Sys Info    Java, OS, memory, CPU, and disk information.
@@ -2922,6 +4032,7 @@ class HelpFrame extends JInternalFrame {
                   # comments, and tempo controls the beat length.
                 - SSH Connect uses PHP to run system ssh/scp commands and keeps
                   output inside the Mactonish window.
+                - Vault and Reminders save under ~/.mactonish.
                 """);
         setContentPane(new JScrollPane(help));
     }

@@ -85,6 +85,9 @@ import javax.sound.midi.Synthesizer;
 import javax.sound.midi.MidiChannel;
 
 public class Main {
+    private static final String DESKTOP_PASSWORD = "misscircle";
+    private static final String SECONDARY_DESKTOP_PASSWORD = "chip";
+
     public static void main(String[] args) {
         EventQueue.invokeLater(() -> {
             try {
@@ -92,9 +95,100 @@ public class Main {
             } catch (Exception ignored) {
             }
 
+            if (!unlockDesktop()) {
+                System.exit(0);
+                return;
+            }
+
             DesktopFrame frame = new DesktopFrame();
             frame.setVisible(true);
         });
+    }
+
+    private static boolean unlockDesktop() {
+        while (true) {
+            JPasswordField passwordField = new JPasswordField(18);
+            passwordField.setEchoChar('*');
+            JPanel panel = new JPanel(new BorderLayout(8, 8));
+            panel.add(new JLabel("Enter desktop password:"), BorderLayout.NORTH);
+            panel.add(passwordField, BorderLayout.CENTER);
+
+            int result = JOptionPane.showConfirmDialog(
+                    null,
+                    panel,
+                    "Mactonish Login",
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+
+            if (result != JOptionPane.OK_OPTION) {
+                int resetResult = JOptionPane.showOptionDialog(
+                        null,
+                        "Need help getting back into your account?",
+                        "Mactonish Login",
+                        JOptionPane.YES_NO_CANCEL_OPTION,
+                        JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        new String[]{"Forgot Password", "Try Again", "Shut Down"},
+                        "Forgot Password"
+                );
+
+                if (resetResult == JOptionPane.YES_OPTION) {
+                    fakeResetAccount();
+                    continue;
+                }
+                if (resetResult == JOptionPane.NO_OPTION) {
+                    continue;
+                }
+                return false;
+            }
+
+            char[] entered = passwordField.getPassword();
+            String password = new String(entered);
+            boolean correct = DESKTOP_PASSWORD.equals(password) || SECONDARY_DESKTOP_PASSWORD.equals(password);
+            Arrays.fill(entered, '\0');
+            if (correct) {
+                return true;
+            }
+
+            JOptionPane.showMessageDialog(
+                    null,
+                    "Wrong password.",
+                    "Mactonish Login",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    private static void fakeResetAccount() {
+        JTextField accountField = new JTextField(18);
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.add(new JLabel("Account name:"), BorderLayout.NORTH);
+        panel.add(accountField, BorderLayout.CENTER);
+
+        int result = JOptionPane.showConfirmDialog(
+                null,
+                panel,
+                "Reset Account",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        JOptionPane.showMessageDialog(
+                null,
+                "Reset request accepted.\nChecking recovery disk...",
+                "Reset Account",
+                JOptionPane.INFORMATION_MESSAGE
+        );
+        JOptionPane.showMessageDialog(
+                null,
+                "Recovery complete.\nPassword hints are unavailable for this account.",
+                "Reset Account",
+                JOptionPane.INFORMATION_MESSAGE
+        );
     }
 }
 

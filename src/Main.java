@@ -256,7 +256,7 @@ class DesktopFrame extends JFrame {
         JMenuItem about = new JMenuItem("About This Computer");
         about.addActionListener(event -> JOptionPane.showMessageDialog(
                 this,
-                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, and Reminders are built in.",
+                "Mactonish System 1.5.3\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, and Reminders are built in.",
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));

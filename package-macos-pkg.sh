@@ -5,7 +5,7 @@ export COPYFILE_DISABLE=1
 
 APP_NAME="Mactonish"
 DISPLAY_NAME="Mactonish System"
-VERSION="1.0.0"
+VERSION="1.5.3"
 IDENTIFIER="com.elia.mactonish"
 
 BUILD_DIR="build/pkg"

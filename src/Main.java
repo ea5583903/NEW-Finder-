@@ -6,7 +6,6 @@ import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDesktopPane;
-import javax.swing.JEditorPane;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JInternalFrame;
@@ -31,7 +30,6 @@ import javax.swing.UIManager;
 import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -42,7 +40,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.Desktop;
 import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -54,10 +51,6 @@ import java.awt.event.MouseEvent;
 import java.awt.Toolkit;
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
-import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
@@ -67,6 +60,10 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import javax.sound.midi.MidiSystem;
+import javax.sound.midi.MidiUnavailableException;
+import javax.sound.midi.Synthesizer;
+import javax.sound.midi.MidiChannel;
 
 public class Main {
     public static void main(String[] args) {
@@ -94,11 +91,12 @@ class DesktopFrame extends JFrame {
     private NotepadFrame notepad;
     private AppCreatorFrame appCreator;
     private FileEditorFrame fileEditor;
-    private BrowserFrame browser;
+    private MusicEditorFrame musicEditor;
     private CalculatorFrame calculator;
     private ClockFrame clock;
     private SystemInfoFrame systemInfo;
     private HelpFrame help;
+    private SshPhpFrame sshPhp;
 
     DesktopFrame() {
         super("Mactonish System");
@@ -118,11 +116,12 @@ class DesktopFrame extends JFrame {
         addDesktopIcon("Notepad", 34, 334, this::openNotepad);
         addDesktopIcon("App Maker", 34, 434, this::openAppCreator);
         addDesktopIcon("File Edit", 34, 534, this::openFileEditor);
-        addDesktopIcon("Browser", 34, 634, this::openBrowser);
+        addDesktopIcon("Music Edit", 34, 634, this::openMusicEditor);
         addDesktopIcon("Calculator", 140, 34, this::openCalculator);
         addDesktopIcon("Clock", 140, 134, this::openClock);
         addDesktopIcon("Sys Info", 140, 234, this::openSystemInfo);
         addDesktopIcon("Help", 140, 334, this::openHelp);
+        addDesktopIcon("SSH", 140, 434, this::openSshPhp);
         addDeskPlate();
         openFinder();
     }
@@ -136,7 +135,7 @@ class DesktopFrame extends JFrame {
         JMenuItem about = new JMenuItem("About This Computer");
         about.addActionListener(event -> JOptionPane.showMessageDialog(
                 this,
-                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Browser, Calculator, Clock, Sys Info, and Help are built in.",
+                "Mactonish System 1.0\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, and SSH Connect are built in.",
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));
@@ -158,8 +157,8 @@ class DesktopFrame extends JFrame {
         appCreatorItem.addActionListener(event -> openAppCreator());
         JMenuItem fileEditorItem = new JMenuItem("File Edit");
         fileEditorItem.addActionListener(event -> openFileEditor());
-        JMenuItem browserItem = new JMenuItem("Browser");
-        browserItem.addActionListener(event -> openBrowser());
+        JMenuItem musicEditorItem = new JMenuItem("Music Edit");
+        musicEditorItem.addActionListener(event -> openMusicEditor());
         JMenuItem calculatorItem = new JMenuItem("Calculator");
         calculatorItem.addActionListener(event -> openCalculator());
         JMenuItem clockItem = new JMenuItem("Clock");
@@ -168,17 +167,20 @@ class DesktopFrame extends JFrame {
         systemInfoItem.addActionListener(event -> openSystemInfo());
         JMenuItem helpItem = new JMenuItem("Help");
         helpItem.addActionListener(event -> openHelp());
+        JMenuItem sshItem = new JMenuItem("SSH Connect");
+        sshItem.addActionListener(event -> openSshPhp());
         apps.add(finderItem);
         apps.add(pRunItem);
         apps.add(terminalItem);
         apps.add(notepadItem);
         apps.add(appCreatorItem);
         apps.add(fileEditorItem);
-        apps.add(browserItem);
+        apps.add(musicEditorItem);
         apps.add(calculatorItem);
         apps.add(clockItem);
         apps.add(systemInfoItem);
         apps.add(helpItem);
+        apps.add(sshItem);
 
         JMenu view = new JMenu("Desktop");
         JMenuItem arrange = new JMenuItem("Clean Up Icons");
@@ -303,16 +305,16 @@ class DesktopFrame extends JFrame {
         }
     }
 
-    private void openBrowser() {
+    private void openMusicEditor() {
         try {
-            if (browser == null || browser.isClosed()) {
-                browser = new BrowserFrame();
-                desktop.add(browser, JLayeredPane.PALETTE_LAYER);
-                browser.setVisible(true);
+            if (musicEditor == null || musicEditor.isClosed()) {
+                musicEditor = new MusicEditorFrame();
+                desktop.add(musicEditor, JLayeredPane.PALETTE_LAYER);
+                musicEditor.setVisible(true);
             }
-            browser.setIcon(false);
-            browser.moveToFront();
-            browser.setSelected(true);
+            musicEditor.setIcon(false);
+            musicEditor.moveToFront();
+            musicEditor.setSelected(true);
         } catch (Exception ignored) {
         }
     }
@@ -369,6 +371,20 @@ class DesktopFrame extends JFrame {
             help.setIcon(false);
             help.moveToFront();
             help.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openSshPhp() {
+        try {
+            if (sshPhp == null || sshPhp.isClosed()) {
+                sshPhp = new SshPhpFrame();
+                desktop.add(sshPhp, JLayeredPane.PALETTE_LAYER);
+                sshPhp.setVisible(true);
+            }
+            sshPhp.setIcon(false);
+            sshPhp.moveToFront();
+            sshPhp.setSelected(true);
         } catch (Exception ignored) {
         }
     }
@@ -569,6 +585,9 @@ class PRunFrame extends JInternalFrame {
                 if (lower.endsWith(".py")) {
                     return runProcess(Arrays.asList("python3", name), directory);
                 }
+                if (lower.endsWith(".php")) {
+                    return runProcess(Arrays.asList("php", name), directory);
+                }
                 if (lower.endsWith(".js")) {
                     return runProcess(Arrays.asList("node", name), directory);
                 }
@@ -639,6 +658,12 @@ class PRunFrame extends JInternalFrame {
                 }
                 if (child(folder, "app.py").exists()) {
                     return runProcess(Arrays.asList("python3", "app.py"), folder);
+                }
+                if (child(folder, "index.php").exists()) {
+                    return runProcess(Arrays.asList("php", "index.php"), folder);
+                }
+                if (child(folder, "main.php").exists()) {
+                    return runProcess(Arrays.asList("php", "main.php"), folder);
                 }
                 if (child(folder, "index.js").exists()) {
                     return runProcess(Arrays.asList("node", "index.js"), folder);
@@ -725,6 +750,9 @@ class PRunFrame extends JInternalFrame {
         }
         if (lower.endsWith(".py")) {
             return "python3 script";
+        }
+        if (lower.endsWith(".php")) {
+            return "php script";
         }
         if (lower.endsWith(".js")) {
             return "node script";
@@ -931,6 +959,252 @@ class TerminalFrame extends JInternalFrame {
 
     private void scrollOutput() {
         output.setCaretPosition(output.getDocument().getLength());
+    }
+}
+
+class SshPhpFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JTextField hostField = new JTextField();
+    private final JTextField userField = new JTextField(System.getProperty("user.name"));
+    private final JTextField portField = new JTextField("22");
+    private final JTextField commandField = new JTextField("pwd");
+    private final JTextField remotePathField = new JTextField("~/remote.txt");
+    private final JTextField localPathField = new JTextField(System.getProperty("user.home"));
+    private final JTextArea output = new JTextArea();
+    private final JLabel status = new JLabel(" ready ");
+    private final JFileChooser chooser = new JFileChooser();
+
+    SshPhpFrame() {
+        super("SSH Connect", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(780, 560);
+        setMinimumSize(new Dimension(560, 380));
+        setLocation(360, 170);
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+
+        for (JTextField field : Arrays.asList(hostField, userField, portField, commandField, remotePathField, localPathField)) {
+            field.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+            field.setBackground(PAPER);
+            field.setForeground(INK);
+        }
+
+        output.setEditable(false);
+        output.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        output.setBackground(Color.BLACK);
+        output.setForeground(new Color(216, 216, 196));
+        output.setText("SSH Connect uses PHP inside this app to run ssh/scp.\nIt still needs system php, ssh, and scp installed. Key-based auth is best.\n");
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" SSH CONNECT VIA PHP ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel fields = new JPanel(new java.awt.GridLayout(6, 2, 6, 6));
+        fields.setBackground(PAPER);
+        fields.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        fields.add(new JLabel(" Host "));
+        fields.add(hostField);
+        fields.add(new JLabel(" User "));
+        fields.add(userField);
+        fields.add(new JLabel(" Port "));
+        fields.add(portField);
+        fields.add(new JLabel(" Command "));
+        fields.add(commandField);
+        fields.add(new JLabel(" Remote Path "));
+        fields.add(remotePathField);
+        fields.add(new JLabel(" Local Path "));
+        fields.add(localPathField);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("Test", this::testConnection));
+        buttons.add(retroButton("Run Command", this::runRemoteCommand));
+        buttons.add(retroButton("Import", this::importRemote));
+        buttons.add(retroButton("Export", this::exportLocal));
+        buttons.add(retroButton("Choose Local...", this::chooseLocal));
+        buttons.add(retroButton("PHP Version", this::phpVersion));
+        buttons.add(retroButton("Clear", () -> output.setText("")));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(fields, BorderLayout.CENTER);
+        top.add(buttons, BorderLayout.SOUTH);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(output), BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu ssh = new JMenu("SSH");
+        JMenuItem test = new JMenuItem("Test");
+        test.addActionListener(event -> testConnection());
+        JMenuItem run = new JMenuItem("Run Command");
+        run.addActionListener(event -> runRemoteCommand());
+        JMenuItem in = new JMenuItem("Import");
+        in.addActionListener(event -> importRemote());
+        JMenuItem out = new JMenuItem("Export");
+        out.addActionListener(event -> exportLocal());
+        ssh.add(test);
+        ssh.add(run);
+        ssh.add(in);
+        ssh.add(out);
+        bar.add(ssh);
+        return bar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void testConnection() {
+        runViaPhp(Arrays.asList("ssh", "-p", port(), target(), "echo connected; uname -a"));
+    }
+
+    private void runRemoteCommand() {
+        runViaPhp(Arrays.asList("ssh", "-p", port(), target(), commandField.getText().trim()));
+    }
+
+    private void importRemote() {
+        File local = resolveLocal(localPathField.getText().trim());
+        runViaPhp(Arrays.asList("scp", "-P", port(), "-r", target() + ":" + remotePathField.getText().trim(), local.getAbsolutePath()));
+    }
+
+    private void exportLocal() {
+        File local = resolveLocal(localPathField.getText().trim());
+        if (!local.exists()) {
+            output.append("\nLocal path does not exist: " + local.getAbsolutePath() + "\n");
+            return;
+        }
+        runViaPhp(Arrays.asList("scp", "-P", port(), "-r", local.getAbsolutePath(), target() + ":" + remotePathField.getText().trim()));
+    }
+
+    private void chooseLocal() {
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            localPathField.setText(chooser.getSelectedFile().getAbsolutePath());
+        }
+    }
+
+    private void phpVersion() {
+        runProcess(Arrays.asList("php", "-v"));
+    }
+
+    private void runViaPhp(List<String> command) {
+        if (hostField.getText().trim().isEmpty() || userField.getText().trim().isEmpty()) {
+            Toolkit.getDefaultToolkit().beep();
+            output.append("\nHost and user are required.\n");
+            return;
+        }
+        try {
+            File script = File.createTempFile("mactonish-ssh-", ".php");
+            script.deleteOnExit();
+            Files.writeString(script.toPath(), """
+                    <?php
+                    $args = array_slice($argv, 1);
+                    $cmd = implode(' ', array_map('escapeshellarg', $args));
+                    passthru($cmd, $exit);
+                    exit($exit);
+                    ?>
+                    """, StandardCharsets.UTF_8);
+            List<String> phpCommand = new ArrayList<>();
+            phpCommand.add("php");
+            phpCommand.add(script.getAbsolutePath());
+            phpCommand.addAll(command);
+            runProcess(phpCommand);
+        } catch (IOException exception) {
+            status.setText(" failed ");
+            output.append("\nCould not create PHP runner: " + exception.getMessage() + "\n");
+        }
+    }
+
+    private void runProcess(List<String> command) {
+        status.setText(" running ");
+        output.append("\n$ " + String.join(" ", command) + "\n");
+        new SwingWorker<Integer, String>() {
+            protected Integer doInBackground() throws Exception {
+                ProcessBuilder builder = new ProcessBuilder(command);
+                builder.redirectErrorStream(true);
+                Process process = builder.start();
+                String text = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                if (!text.isEmpty()) {
+                    publish(text);
+                    if (!text.endsWith("\n")) {
+                        publish("\n");
+                    }
+                }
+                return process.waitFor();
+            }
+
+            protected void process(List<String> chunks) {
+                for (String chunk : chunks) {
+                    output.append(chunk);
+                }
+                output.setCaretPosition(output.getDocument().getLength());
+            }
+
+            protected void done() {
+                try {
+                    int exit = get();
+                    status.setText(" exit " + exit + " ");
+                    output.append("[exit " + exit + "]\n");
+                } catch (Exception exception) {
+                    status.setText(" failed ");
+                    output.append("[failed: " + exception.getMessage() + "]\n");
+                }
+                output.setCaretPosition(output.getDocument().getLength());
+            }
+        }.execute();
+    }
+
+    private String target() {
+        return userField.getText().trim() + "@" + hostField.getText().trim();
+    }
+
+    private String port() {
+        String port = portField.getText().trim();
+        return port.isEmpty() ? "22" : port;
+    }
+
+    private File resolveLocal(String typed) {
+        if (typed.isBlank() || typed.equals("~")) {
+            return new File(System.getProperty("user.home"));
+        }
+        if ((typed.startsWith("\"") && typed.endsWith("\"")) || (typed.startsWith("'") && typed.endsWith("'"))) {
+            typed = typed.substring(1, typed.length() - 1);
+        }
+        if (typed.startsWith("~/")) {
+            return new File(System.getProperty("user.home") + typed.substring(1));
+        }
+        return new File(typed);
     }
 }
 
@@ -1555,35 +1829,34 @@ class FileEditorFrame extends JInternalFrame {
     }
 }
 
-class BrowserFrame extends JInternalFrame {
+class MusicEditorFrame extends JInternalFrame {
     private static final Color PAPER = new Color(238, 238, 226);
     private static final Color INK = Color.BLACK;
 
-    private final JTextField address = new JTextField("https://example.com");
-    private final JEditorPane page = new JEditorPane();
+    private final JFileChooser chooser = new JFileChooser();
+    private final JTextArea score = new JTextArea();
+    private final JTextField tempoField = new JTextField("120");
     private final JLabel status = new JLabel(" ready ");
-    private URL currentUrl;
+    private File currentFile;
+    private volatile boolean stopRequested;
 
-    BrowserFrame() {
-        super("Browser", true, true, true, true);
+    MusicEditorFrame() {
+        super("Music Edit", true, true, true, true);
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-        setSize(820, 560);
-        setMinimumSize(new Dimension(560, 380));
+        setSize(760, 520);
+        setMinimumSize(new Dimension(560, 360));
         setLocation(460, 150);
 
-        address.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        address.setBackground(PAPER);
-        address.setForeground(INK);
-        address.addActionListener(event -> loadTypedAddress());
-
-        page.setEditable(false);
-        page.setBackground(Color.WHITE);
-        page.addHyperlinkListener(event -> {
-            if (event.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-                loadUrl(event.getURL());
-            }
-        });
-        page.setText("<html><body><h1>Mactonish Browser</h1><p>Type a URL, search words, or local HTML file path and press Go.</p><p>JavaScript pages can be opened externally.</p></body></html>");
+        score.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        score.setBackground(PAPER);
+        score.setForeground(INK);
+        score.setText("""
+                # Mactonish song
+                # Type notes like: C4 D4 E4 F4 G4 A4 B4 C5
+                # Use R for rest, and optional beats: C4:2 D4:0.5 R:1
+                C4 D4 E4 F4 G4 A4 B4 C5
+                """);
+        tempoField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
 
         setJMenuBar(buildMenu());
         setContentPane(buildWindow());
@@ -1597,7 +1870,7 @@ class BrowserFrame extends JInternalFrame {
         JPanel title = new JPanel(new BorderLayout());
         title.setBackground(PAPER);
         title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
-        JLabel titleText = new JLabel(" WEB BROWSER ", JLabel.CENTER);
+        JLabel titleText = new JLabel(" MUSIC EDITOR ", JLabel.CENTER);
         titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
         title.add(new JLabel("  □  "), BorderLayout.WEST);
         title.add(titleText, BorderLayout.CENTER);
@@ -1605,12 +1878,16 @@ class BrowserFrame extends JInternalFrame {
         JPanel controls = new JPanel(new BorderLayout(6, 0));
         controls.setBackground(PAPER);
         controls.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         buttons.setBackground(PAPER);
-        buttons.add(retroButton("Go", this::loadTypedAddress));
-        buttons.add(retroButton("Open External", this::openExternal));
-        controls.add(address, BorderLayout.CENTER);
-        controls.add(buttons, BorderLayout.EAST);
+        buttons.add(new JLabel("Tempo"));
+        buttons.add(tempoField);
+        buttons.add(retroButton("Play", this::playSong));
+        buttons.add(retroButton("Stop", this::allNotesOff));
+        buttons.add(retroButton("Open...", this::openSong));
+        buttons.add(retroButton("Save", this::saveSong));
+        buttons.add(retroButton("Save As...", this::saveSongAs));
+        controls.add(buttons, BorderLayout.CENTER);
 
         JPanel top = new JPanel(new BorderLayout());
         top.setBackground(PAPER);
@@ -1621,28 +1898,24 @@ class BrowserFrame extends JInternalFrame {
         status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
 
         root.add(top, BorderLayout.NORTH);
-        root.add(new JScrollPane(page), BorderLayout.CENTER);
+        root.add(new JScrollPane(score), BorderLayout.CENTER);
         root.add(status, BorderLayout.SOUTH);
         return root;
     }
 
     private JMenuBar buildMenu() {
         JMenuBar menuBar = new JMenuBar();
-        JMenu browser = new JMenu("Browser");
-        JMenuItem go = new JMenuItem("Go");
-        go.addActionListener(event -> loadTypedAddress());
-        JMenuItem reload = new JMenuItem("Reload");
-        reload.addActionListener(event -> {
-            if (currentUrl != null) {
-                loadUrl(currentUrl);
-            }
-        });
-        JMenuItem external = new JMenuItem("Open External");
-        external.addActionListener(event -> openExternal());
-        browser.add(go);
-        browser.add(reload);
-        browser.add(external);
-        menuBar.add(browser);
+        JMenu music = new JMenu("Music");
+        JMenuItem play = new JMenuItem("Play");
+        play.addActionListener(event -> playSong());
+        JMenuItem open = new JMenuItem("Open...");
+        open.addActionListener(event -> openSong());
+        JMenuItem save = new JMenuItem("Save");
+        save.addActionListener(event -> saveSong());
+        music.add(play);
+        music.add(open);
+        music.add(save);
+        menuBar.add(music);
         return menuBar;
     }
 
@@ -1659,78 +1932,130 @@ class BrowserFrame extends JInternalFrame {
         return button;
     }
 
-    private void loadTypedAddress() {
-        try {
-            loadUrl(toUrl(address.getText().trim()));
-        } catch (Exception exception) {
-            status.setText(" bad address ");
-            JOptionPane.showMessageDialog(this, "Could not read address:\n" + exception.getMessage(), "Browser", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void loadUrl(URL url) {
-        if (url == null) {
-            return;
-        }
-        status.setText(" loading ");
-        address.setText(url.toExternalForm());
+    private void playSong() {
+        stopRequested = false;
+        status.setText(" playing ");
         new SwingWorker<Void, Void>() {
             protected Void doInBackground() throws Exception {
-                page.setPage(url);
+                playScore(score.getText(), tempo());
                 return null;
             }
 
             protected void done() {
                 try {
                     get();
-                    currentUrl = url;
-                    status.setText(" " + url.toExternalForm() + " ");
+                    status.setText(" done ");
                 } catch (Exception exception) {
-                    status.setText(" failed ");
-                    page.setText("<html><body><h1>Load failed</h1><pre>" + escapeHtml(exception.getMessage()) + "</pre></body></html>");
+                    status.setText(" play failed ");
+                    JOptionPane.showMessageDialog(MusicEditorFrame.this, "Playback failed:\n" + exception.getMessage(), "Music Edit", JOptionPane.ERROR_MESSAGE);
                 }
             }
         }.execute();
     }
 
-    private void openExternal() {
+    private void playScore(String text, int tempo) throws MidiUnavailableException, InterruptedException {
+        Synthesizer synth = MidiSystem.getSynthesizer();
+        synth.open();
         try {
-            URL url = currentUrl != null ? currentUrl : toUrl(address.getText().trim());
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                Desktop.getDesktop().browse(url.toURI());
-                status.setText(" opened external ");
-            } else {
-                status.setText(" external browser unavailable ");
+            MidiChannel channel = synth.getChannels()[0];
+            channel.programChange(0);
+            double beatMs = 60000.0 / tempo;
+            for (String line : text.split("\\R")) {
+                String clean = line.split("#", 2)[0];
+                for (String token : clean.split("\\s+")) {
+                    if (stopRequested) {
+                        break;
+                    }
+                    if (token.isBlank()) {
+                        continue;
+                    }
+                    NoteEvent event = parseNote(token);
+                    int duration = Math.max(40, (int) (beatMs * event.beats));
+                    if (event.pitch >= 0) {
+                        channel.noteOn(event.pitch, 90);
+                        Thread.sleep(duration);
+                        channel.noteOff(event.pitch);
+                    } else {
+                        Thread.sleep(duration);
+                    }
+                }
             }
-        } catch (Exception exception) {
-            status.setText(" external failed ");
-            JOptionPane.showMessageDialog(this, "Could not open external browser:\n" + exception.getMessage(), "Browser", JOptionPane.ERROR_MESSAGE);
+        } finally {
+            synth.close();
         }
     }
 
-    private URL toUrl(String typed) throws MalformedURLException {
-        if (typed.startsWith("http://") || typed.startsWith("https://") || typed.startsWith("file:")) {
-            return URI.create(typed).toURL();
+    private NoteEvent parseNote(String token) {
+        String[] parts = token.split(":", 2);
+        double beats = parts.length == 2 ? Double.parseDouble(parts[1]) : 1.0;
+        if (parts[0].equalsIgnoreCase("R")) {
+            return new NoteEvent(-1, beats);
         }
-        if (typed.startsWith("~/")) {
-            typed = System.getProperty("user.home") + typed.substring(1);
+        String note = parts[0].toUpperCase(Locale.ROOT);
+        int octave = Character.getNumericValue(note.charAt(note.length() - 1));
+        String name = note.substring(0, note.length() - 1);
+        List<String> names = Arrays.asList("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B");
+        int semitone = names.indexOf(name);
+        if (semitone < 0) {
+            throw new IllegalArgumentException("Bad note: " + token);
         }
-        File file = new File(typed);
-        if (file.exists()) {
-            return file.toURI().toURL();
-        }
-        if (typed.contains(" ") || !typed.contains(".")) {
-            String query = URLEncoder.encode(typed, StandardCharsets.UTF_8);
-            return URI.create("https://duckduckgo.com/html/?q=" + query).toURL();
-        }
-        return URI.create("https://" + typed).toURL();
+        return new NoteEvent(12 * (octave + 1) + semitone, beats);
     }
 
-    private String escapeHtml(String value) {
-        if (value == null) {
-            return "";
+    private int tempo() {
+        return Math.max(30, Math.min(300, Integer.parseInt(tempoField.getText().trim())));
+    }
+
+    private void allNotesOff() {
+        stopRequested = true;
+        try {
+            Synthesizer synth = MidiSystem.getSynthesizer();
+            synth.open();
+            for (MidiChannel channel : synth.getChannels()) {
+                if (channel != null) {
+                    channel.allNotesOff();
+                }
+            }
+            synth.close();
+            status.setText(" stopped ");
+        } catch (MidiUnavailableException exception) {
+            status.setText(" stop failed ");
         }
-        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private void openSong() {
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try {
+                currentFile = chooser.getSelectedFile();
+                score.setText(Files.readString(currentFile.toPath(), StandardCharsets.UTF_8));
+                status.setText(" " + currentFile.getAbsolutePath() + " ");
+            } catch (IOException exception) {
+                JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "Music Edit", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void saveSong() {
+        if (currentFile == null) {
+            saveSongAs();
+            return;
+        }
+        try {
+            Files.writeString(currentFile.toPath(), score.getText(), StandardCharsets.UTF_8);
+            status.setText(" saved ");
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Music Edit", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void saveSongAs() {
+        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            currentFile = chooser.getSelectedFile();
+            saveSong();
+        }
+    }
+
+    record NoteEvent(int pitch, double beats) {
     }
 }
 
@@ -2581,7 +2906,8 @@ class HelpFrame extends JInternalFrame {
                 Notepad     Write quick notes and save text files.
                 App Maker   Create runnable Java or Rust app folders.
                 File Edit   Open a text file by chooser/path and edit it.
-                Browser     Browse simple HTML/search; use Open External for JS.
+                Music Edit  Write note patterns, play them with MIDI, save songs.
+                SSH Connect Connect with ssh/scp through PHP inside this app.
                 Calculator  Basic arithmetic with parentheses.
                 Clock       Local date and time.
                 Sys Info    Java, OS, memory, CPU, and disk information.
@@ -2589,11 +2915,13 @@ class HelpFrame extends JInternalFrame {
                 Tips
 
                 - P-Run understands run.sh, package.json, Cargo.toml, go.mod,
-                  Gradle/Maven files, Python/Node entry files, Java files, and
-                  executable files.
+                  Gradle/Maven files, Python/Node/PHP entry files, Java files,
+                  and executable files.
                 - App Maker projects include run.sh so P-Run can launch them.
-                - Browser is intentionally lightweight. Modern web apps need
-                  Open External.
+                - Music Edit uses notes like C4 D#4 R:1 A4:0.5. Lines can use
+                  # comments, and tempo controls the beat length.
+                - SSH Connect uses PHP to run system ssh/scp commands and keeps
+                  output inside the Mactonish window.
                 """);
         setContentPane(new JScrollPane(help));
     }

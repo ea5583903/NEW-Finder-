@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+set -eu
+
+APP_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+if ! command -v java >/dev/null 2>&1; then
+  osascript -e 'display dialog "Mactonish System requires Java 17 or newer." buttons {"OK"} default button "OK" with icon caution' >/dev/null 2>&1 || true
+  exit 1
+fi
+
+exec java -Xdock:name="Mactonish System" -jar "$APP_DIR/Resources/Mactonish.jar" "$@"

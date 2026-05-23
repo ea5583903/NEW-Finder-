@@ -7,6 +7,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JDesktopPane;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
@@ -36,6 +37,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.text.JTextComponent;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -50,12 +52,12 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.KeyboardFocusManager;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.Toolkit;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -98,16 +100,17 @@ public class Main {
                 UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
             } catch (Exception ignored) {
             }
+            BsodTrigger.install();
 
             if (!unlockDesktop()) {
                 System.exit(0);
                 return;
             }
 
-            Win95Startup.show(() -> {
+            Win95Startup.show(() -> PiOSSystemCheck.show(() -> {
                 DesktopFrame frame = new DesktopFrame();
                 frame.setVisible(true);
-            });
+            }));
         });
     }
 
@@ -157,11 +160,10 @@ public class Main {
                 return true;
             }
 
-            JOptionPane.showMessageDialog(
+            DesktopSounds.showError(
                     null,
-                    "Wrong password.",
-                    "Mactonish Login",
-                    JOptionPane.ERROR_MESSAGE
+                    "ew a hacker",
+                    "Mactonish Login"
             );
         }
     }
@@ -323,6 +325,356 @@ class Win95Startup {
     }
 }
 
+class DesktopSounds {
+    private static final String BSOD_SOUND = "df.mp3";
+
+    static void showError(Component parent, String message, String title) {
+        BsodScreen.show(parent, title.toUpperCase(Locale.ROOT).replace(' ', '_') + "_ERROR");
+    }
+
+    static void playError() {
+        BsodScreen.show(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(), "INVALID_OPERATION");
+    }
+
+    static void playBsod() {
+        playDownloadSound(BSOD_SOUND, "desktop-bsod-sound", 4000);
+    }
+
+    private static void playDownloadSound(String fileName, String threadName, int windowsSleepMs) {
+        new Thread(() -> {
+            try {
+                Path sound = findDownloadSound(fileName);
+                String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+                ProcessBuilder player;
+                if (os.contains("mac")) {
+                    player = new ProcessBuilder("afplay", sound.toString());
+                } else if (os.contains("win")) {
+                    String uri = sound.toUri().toString().replace("'", "''");
+                    String command = "Add-Type -AssemblyName presentationCore; "
+                            + "$player = New-Object System.Windows.Media.MediaPlayer; "
+                            + "$player.Open([Uri]'" + uri + "'); "
+                            + "$player.Play(); Start-Sleep -Milliseconds " + windowsSleepMs;
+                    player = new ProcessBuilder("powershell", "-NoProfile", "-Command", command);
+                } else {
+                    player = new ProcessBuilder("ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", sound.toString());
+                }
+                player.start();
+            } catch (Exception ignored) {
+            }
+        }, threadName).start();
+    }
+
+    private static Path findDownloadSound(String fileName) throws IOException {
+        Path lowerDownloads = Path.of(System.getProperty("user.home"), "downloads", fileName);
+        if (Files.exists(lowerDownloads)) {
+            return lowerDownloads;
+        }
+        Path downloads = Path.of(System.getProperty("user.home"), "Downloads", fileName);
+        if (Files.exists(downloads)) {
+            return downloads;
+        }
+        throw new IOException("Missing " + fileName);
+    }
+}
+
+class PiOSSystemCheck {
+    private static final int LINE_DELAY_MS = 210;
+    private static final int FINISH_DELAY_MS = 850;
+    private static final String[] LOGO_LINES = {
+            "        _ ___  ____   ____  ",
+            " _ __  (_) _ \\/ __ \\ / ___| ",
+            "| '_ \\ | | | | |  | |\\___ \\ ",
+            "| |_) || | |_| |__| | ___) |",
+            "| .__/ |_|___/ \\____/ |____/ ",
+            "|_|                         ",
+            "",
+            "piOS, some operation sys."
+    };
+    private static final String[] CHECK_LINES = {
+            "[ OK ] CPU check",
+            "[ OK ] Memory map",
+            "[ OK ] Disk controller",
+            "[ OK ] Display adapter",
+            "[ OK ] Sound driver",
+            "[ OK ] Input devices",
+            "[ OK ] Desktop shell",
+            "",
+            "System check complete."
+    };
+
+    static void show(Runnable afterCheck) {
+        JWindow check = new JWindow();
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.BLACK);
+
+        JTextArea terminal = new JTextArea(logoText() + "\n\n");
+        terminal.setEditable(false);
+        terminal.setBackground(Color.BLACK);
+        terminal.setForeground(new Color(86, 255, 122));
+        terminal.setCaretColor(terminal.getForeground());
+        terminal.setFont(new Font(Font.MONOSPACED, Font.BOLD, 18));
+        terminal.setBorder(BorderFactory.createEmptyBorder(28, 34, 28, 34));
+        terminal.setLineWrap(false);
+
+        panel.add(terminal, BorderLayout.CENTER);
+        check.setContentPane(panel);
+        check.setFocusableWindowState(true);
+        check.setSize(640, 420);
+        check.setLocationRelativeTo(null);
+        check.setAlwaysOnTop(true);
+        check.setVisible(true);
+        check.toFront();
+
+        final int[] index = {0};
+        javax.swing.Timer timer = new javax.swing.Timer(LINE_DELAY_MS, null);
+        timer.addActionListener(event -> {
+            if (index[0] < CHECK_LINES.length) {
+                terminal.append(CHECK_LINES[index[0]] + "\n");
+                index[0]++;
+                return;
+            }
+
+            timer.stop();
+            terminal.setText(logoText() + "\n\n");
+            javax.swing.Timer finish = new javax.swing.Timer(FINISH_DELAY_MS, done -> {
+                check.setVisible(false);
+                check.dispose();
+                afterCheck.run();
+            });
+            finish.setRepeats(false);
+            finish.start();
+        });
+        timer.start();
+    }
+
+    private static String logoText() {
+        return String.join("\n", LOGO_LINES);
+    }
+}
+
+class BsodTrigger {
+    private static boolean installed;
+    private static final StringBuilder TYPED = new StringBuilder();
+    private static final StringBuilder RECENT_TEXT = new StringBuilder();
+    private static final String[] BLUE_SCREEN_CAUSES = {
+            "format c:",
+            "delete system32",
+            "del system32",
+            "rm -rf /",
+            "kill -9 1",
+            "taskkill /f /im csrss.exe",
+            "csrss.exe",
+            "kernel panic",
+            "panic(cpu",
+            "ntoskrnl.exe",
+            "hal.dll",
+            "bad_pool_header",
+            "irql_not_less_or_equal",
+            "page_fault_in_nonpaged_area",
+            "driver_irql_not_less_or_equal",
+            ".sys driver",
+            "diskutil erasedisk",
+            "dd if=/dev/zero of=/dev/",
+            "bcdedit /delete",
+            "reg delete hklm\\system"
+    };
+
+    static void install() {
+        if (installed) {
+            return;
+        }
+        installed = true;
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(event -> {
+            if (event.getID() != KeyEvent.KEY_TYPED) {
+                return false;
+            }
+            char key = event.getKeyChar();
+            rememberKey(key);
+            if (!Character.isISOControl(key) && shouldTreatTypingAsDesktopError()) {
+                if (Character.isDigit(key)) {
+                    TYPED.append(key);
+                    if (TYPED.length() > 3) {
+                        TYPED.delete(0, TYPED.length() - 3);
+                    }
+                    if ("666".contentEquals(TYPED)) {
+                        TYPED.setLength(0);
+                        BsodScreen.showAngry(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
+                    }
+                    if (!"666".startsWith(TYPED.toString())) {
+                        TYPED.setLength(0);
+                        BsodScreen.show(
+                                KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(),
+                                "DESKTOP_KEYBOARD_INPUT_ERROR"
+                        );
+                    }
+                    return false;
+                }
+                TYPED.setLength(0);
+                BsodScreen.show(
+                        KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(),
+                        "DESKTOP_KEYBOARD_INPUT_ERROR"
+                );
+                return false;
+            }
+            if (!Character.isDigit(key)) {
+                TYPED.setLength(0);
+                return false;
+            }
+            TYPED.append(key);
+            if (TYPED.length() > 3) {
+                TYPED.delete(0, TYPED.length() - 3);
+            }
+            if ("666".contentEquals(TYPED)) {
+                TYPED.setLength(0);
+                BsodScreen.showAngry(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
+            }
+            return false;
+        });
+    }
+
+    private static boolean shouldTreatTypingAsDesktopError() {
+        Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        if (focusOwner == null) {
+            return true;
+        }
+        return !(focusOwner instanceof JTextComponent);
+    }
+
+    static boolean shouldShowClassicBsod(String text) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        for (String cause : BLUE_SCREEN_CAUSES) {
+            if (lower.contains(cause)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void rememberKey(char key) {
+        if (Character.isISOControl(key)) {
+            if (key == '\b' && RECENT_TEXT.length() > 0) {
+                RECENT_TEXT.deleteCharAt(RECENT_TEXT.length() - 1);
+            }
+            return;
+        }
+        RECENT_TEXT.append(Character.toLowerCase(key));
+        if (RECENT_TEXT.length() > 160) {
+            RECENT_TEXT.delete(0, RECENT_TEXT.length() - 160);
+        }
+        String recent = RECENT_TEXT.toString();
+        for (String cause : BLUE_SCREEN_CAUSES) {
+            if (recent.contains(cause)) {
+                RECENT_TEXT.setLength(0);
+                TYPED.setLength(0);
+                BsodScreen.show(
+                        KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(),
+                        reasonFor(cause)
+                );
+                return;
+            }
+        }
+    }
+
+    static String reasonFor(String text) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        for (String cause : BLUE_SCREEN_CAUSES) {
+            if (lower.contains(cause)) {
+                return cause.toUpperCase(Locale.ROOT)
+                        .replace('\\', '_')
+                        .replace('/', '_')
+                        .replace('-', '_')
+                        .replace('.', '_')
+                        .replace(':', '_')
+                        .replace(' ', '_')
+                        .replaceAll("_+", "_");
+            }
+        }
+        return "SYSTEM_CRASH_CAUSE_DETECTED";
+    }
+}
+
+class BsodScreen {
+    private static JWindow current;
+
+    static void show(Component owner) {
+        show(owner, "MANUAL_BSOD_TRIGGER");
+    }
+
+    static void show(Component owner, String reason) {
+        show(owner, ":(", new Color(0, 0, 170), reason);
+    }
+
+    static void showAngry(Component owner) {
+        show(owner, ">:( ", new Color(170, 0, 0), "666_TRIGGERED");
+    }
+
+    private static void show(Component owner, String face, Color background, String reason) {
+        if (current != null && current.isVisible()) {
+            current.toFront();
+            current.requestFocusInWindow();
+            return;
+        }
+        DesktopSounds.playBsod();
+
+        JWindow screen = new JWindow();
+        current = screen;
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(background);
+        panel.setBorder(BorderFactory.createEmptyBorder(52, 62, 52, 62));
+
+        JTextArea message = new JTextArea(face + "\n\n" + """
+                A problem has been detected and Mactonish has been shut down to prevent damage
+                to your computer.
+
+                %s
+
+                If this is the first time you've seen this Stop error screen,
+                restart your computer. If this screen appears again, follow
+                these steps:
+
+                Check to make sure any new hardware or software is properly installed.
+                If this is a new installation, ask your hardware or software manufacturer
+                for any Mactonish updates you might need.
+
+                Technical information:
+
+                *** STOP: 0x000000DF (0x4D414354, 0x4F4E4953, 0x482E5359, 0x00000000)
+
+                Press Esc to restart Mactonish.
+                """.formatted(reason));
+        message.setEditable(false);
+        message.setOpaque(false);
+        message.setForeground(Color.WHITE);
+        message.setCaretColor(Color.WHITE);
+        message.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 18));
+        message.setLineWrap(true);
+        message.setWrapStyleWord(true);
+
+        panel.add(message, BorderLayout.CENTER);
+        screen.setContentPane(panel);
+        screen.setAlwaysOnTop(true);
+        screen.setFocusableWindowState(true);
+
+        if (owner != null && owner.getGraphicsConfiguration() != null) {
+            screen.setBounds(owner.getGraphicsConfiguration().getBounds());
+        } else {
+            screen.setSize(900, 620);
+            screen.setLocationRelativeTo(null);
+        }
+
+        screen.getRootPane().registerKeyboardAction(
+                event -> {
+                    screen.dispose();
+                    current = null;
+                },
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW
+        );
+        screen.setVisible(true);
+        screen.requestFocusInWindow();
+    }
+}
+
 class DesktopFrame extends JFrame {
     private static final Color DESKTOP = new Color(104, 144, 152);
     private static final Color PAPER = new Color(238, 238, 226);
@@ -391,9 +743,12 @@ class DesktopFrame extends JFrame {
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));
+        JMenuItem bsod = new JMenuItem("Trigger BSOD");
+        bsod.addActionListener(event -> BsodScreen.show(this));
         JMenuItem quit = new JMenuItem("Shut Down");
         quit.addActionListener(event -> dispose());
         apple.add(about);
+        apple.add(bsod);
         apple.add(quit);
 
         JMenu apps = new JMenu("Apps");
@@ -843,10 +1198,11 @@ class PRunFrame extends JInternalFrame {
     private void runSelectedFile() {
         selectedFile = fileFromTypedPath();
         if (selectedFile == null) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         if (!selectedFile.exists()) {
+            DesktopSounds.playError();
             output.append("\nCannot run that selection.\n");
             return;
         }
@@ -871,9 +1227,13 @@ class PRunFrame extends JInternalFrame {
                     int exit = get();
                     status.setText(" exit " + exit + " ");
                     output.append("\n[P-Run finished with exit code " + exit + "]\n");
+                    if (exit != 0) {
+                        BsodScreen.show(PRunFrame.this, "P_RUN_EXIT_" + exit);
+                    }
                 } catch (Exception exception) {
                     status.setText(" failed ");
                     output.append("\n[P-Run failed: " + exception.getMessage() + "]\n");
+                    BsodScreen.show(PRunFrame.this, "P_RUN_ERROR");
                 }
             }
 
@@ -1193,6 +1553,10 @@ class TerminalFrame extends JInternalFrame {
             return;
         }
         output.append("$ " + command + "\n");
+        if (BsodTrigger.shouldShowClassicBsod(command)) {
+            BsodScreen.show(this, BsodTrigger.reasonFor(command));
+            return;
+        }
         if (command.equals("clear")) {
             output.setText("");
             return;
@@ -1237,9 +1601,14 @@ class TerminalFrame extends JInternalFrame {
 
             protected void done() {
                 try {
-                    output.append("[exit " + get() + "]\n");
+                    int exit = get();
+                    output.append("[exit " + exit + "]\n");
+                    if (exit != 0) {
+                        BsodScreen.show(TerminalFrame.this, "TERMINAL_EXIT_" + exit);
+                    }
                 } catch (Exception exception) {
                     output.append("[failed: " + exception.getMessage() + "]\n");
+                    BsodScreen.show(TerminalFrame.this, "TERMINAL_ERROR");
                 }
                 input.setEnabled(true);
                 input.requestFocusInWindow();
@@ -1269,6 +1638,7 @@ class TerminalFrame extends JInternalFrame {
             updateStatus();
         } else {
             output.append("cd: no such directory: " + target + "\n");
+            BsodScreen.show(this, "TERMINAL_CD_ERROR");
         }
         scrollOutput();
     }
@@ -1423,6 +1793,7 @@ class SshPhpFrame extends JInternalFrame {
         File local = resolveLocal(localPathField.getText().trim());
         if (!local.exists()) {
             output.append("\nLocal path does not exist: " + local.getAbsolutePath() + "\n");
+            BsodScreen.show(this, "SSH_LOCAL_PATH_ERROR");
             return;
         }
         runViaPhp(Arrays.asList("scp", "-P", port(), "-r", local.getAbsolutePath(), target() + ":" + remotePathField.getText().trim()));
@@ -1440,7 +1811,7 @@ class SshPhpFrame extends JInternalFrame {
 
     private void runViaPhp(List<String> command) {
         if (hostField.getText().trim().isEmpty() || userField.getText().trim().isEmpty()) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             output.append("\nHost and user are required.\n");
             return;
         }
@@ -1463,6 +1834,7 @@ class SshPhpFrame extends JInternalFrame {
         } catch (IOException exception) {
             status.setText(" failed ");
             output.append("\nCould not create PHP runner: " + exception.getMessage() + "\n");
+            BsodScreen.show(this, "SSH_PHP_RUNNER_ERROR");
         }
     }
 
@@ -1496,9 +1868,13 @@ class SshPhpFrame extends JInternalFrame {
                     int exit = get();
                     status.setText(" exit " + exit + " ");
                     output.append("[exit " + exit + "]\n");
+                    if (exit != 0) {
+                        BsodScreen.show(SshPhpFrame.this, "SSH_EXIT_" + exit);
+                    }
                 } catch (Exception exception) {
                     status.setText(" failed ");
                     output.append("[failed: " + exception.getMessage() + "]\n");
+                    BsodScreen.show(SshPhpFrame.this, "SSH_PROCESS_ERROR");
                 }
                 output.setCaretPosition(output.getDocument().getLength());
             }
@@ -1633,7 +2009,7 @@ class NotepadFrame extends JInternalFrame {
                 dirty = false;
                 status.setText(" " + currentFile.getAbsolutePath() + " ");
             } catch (IOException exception) {
-                JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "Notepad", JOptionPane.ERROR_MESSAGE);
+                DesktopSounds.showError(this, "Open failed:\n" + exception.getMessage(), "Notepad");
             } finally {
                 loading = false;
             }
@@ -1650,7 +2026,7 @@ class NotepadFrame extends JInternalFrame {
             dirty = false;
             status.setText(" " + currentFile.getAbsolutePath() + " saved ");
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Notepad", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Save failed:\n" + exception.getMessage(), "Notepad");
         }
     }
 
@@ -1801,7 +2177,7 @@ class AppCreatorFrame extends JInternalFrame {
     private void createApp() {
         String appName = sanitizeName(nameField.getText());
         if (appName.isBlank()) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             output.append("\nApp name is empty.\n");
             return;
         }
@@ -1835,7 +2211,7 @@ class AppCreatorFrame extends JInternalFrame {
             output.append("cd \"" + appFolder.getAbsolutePath() + "\" && ./run.sh\n");
         } catch (IOException exception) {
             status.setText(" failed ");
-            JOptionPane.showMessageDialog(this, "Create failed:\n" + exception.getMessage(), "App Maker", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Create failed:\n" + exception.getMessage(), "App Maker");
         }
     }
 
@@ -2074,7 +2450,7 @@ class FileEditorFrame extends JInternalFrame {
     private void openFile(File file) {
         if (file == null || !file.exists() || file.isDirectory()) {
             status.setText(" cannot open ");
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         try {
@@ -2086,7 +2462,7 @@ class FileEditorFrame extends JInternalFrame {
             dirty = false;
             status.setText(" " + file.getAbsolutePath() + " ");
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "File Edit", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Open failed:\n" + exception.getMessage(), "File Edit");
         } finally {
             loading = false;
         }
@@ -2102,7 +2478,7 @@ class FileEditorFrame extends JInternalFrame {
             dirty = false;
             status.setText(" " + currentFile.getAbsolutePath() + " saved ");
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "File Edit", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Save failed:\n" + exception.getMessage(), "File Edit");
         }
     }
 
@@ -2267,7 +2643,7 @@ class MusicEditorFrame extends JInternalFrame {
                     status.setText(" done ");
                 } catch (Exception exception) {
                     status.setText(" play failed ");
-                    JOptionPane.showMessageDialog(MusicEditorFrame.this, "Playback failed:\n" + exception.getMessage(), "Music Edit", JOptionPane.ERROR_MESSAGE);
+                    DesktopSounds.showError(MusicEditorFrame.this, "Playback failed:\n" + exception.getMessage(), "Music Edit");
                 }
             }
         }.execute();
@@ -2350,7 +2726,7 @@ class MusicEditorFrame extends JInternalFrame {
                 score.setText(Files.readString(currentFile.toPath(), StandardCharsets.UTF_8));
                 status.setText(" " + currentFile.getAbsolutePath() + " ");
             } catch (IOException exception) {
-                JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "Music Edit", JOptionPane.ERROR_MESSAGE);
+                DesktopSounds.showError(this, "Open failed:\n" + exception.getMessage(), "Music Edit");
             }
         }
     }
@@ -2364,7 +2740,7 @@ class MusicEditorFrame extends JInternalFrame {
             Files.writeString(currentFile.toPath(), score.getText(), StandardCharsets.UTF_8);
             status.setText(" saved ");
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Music Edit", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Save failed:\n" + exception.getMessage(), "Music Edit");
         }
     }
 
@@ -2810,7 +3186,7 @@ class FinderFrame extends JInternalFrame {
 
     private void saveEditor() {
         if (editorFile == null || !editor.isEditable()) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         try {
@@ -2819,7 +3195,7 @@ class FinderFrame extends JInternalFrame {
             editorStatus.setText(" saved ");
             tableModel.setDirectory(currentDirectory);
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "NANO", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Save failed:\n" + exception.getMessage(), "NANO");
         }
     }
 
@@ -3328,7 +3704,7 @@ class PasswordVaultFrame extends JInternalFrame {
         }
         char[] password = masterField.getPassword();
         if (password.length == 0) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             status.setText(" enter master password ");
             return;
         }
@@ -3339,7 +3715,7 @@ class PasswordVaultFrame extends JInternalFrame {
             table.setEnabled(true);
             masterField.setText("");
         } catch (Exception exception) {
-            JOptionPane.showMessageDialog(this, "Unlock failed. Check the master password.", "Password Vault", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Unlock failed. Check the master password.", "Password Vault");
         } finally {
             Arrays.fill(password, '\0');
         }
@@ -3386,13 +3762,12 @@ class PasswordVaultFrame extends JInternalFrame {
         char[] confirm = second.getPassword();
         try {
             if (password.length == 0) {
-                Toolkit.getDefaultToolkit().beep();
+                DesktopSounds.playError();
                 status.setText(" password required ");
                 return;
             }
             if (!Arrays.equals(password, confirm)) {
-                Toolkit.getDefaultToolkit().beep();
-                JOptionPane.showMessageDialog(this, "Passwords do not match.", "Password Vault", JOptionPane.ERROR_MESSAGE);
+                DesktopSounds.showError(this, "Passwords do not match.", "Password Vault");
                 return;
             }
             model.load("");
@@ -3410,7 +3785,7 @@ class PasswordVaultFrame extends JInternalFrame {
 
     private void save() {
         if (masterPassword == null) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         try {
@@ -3418,7 +3793,7 @@ class PasswordVaultFrame extends JInternalFrame {
             Files.writeString(STORE.toPath(), encrypt(model.dump(), masterPassword), StandardCharsets.UTF_8);
             status.setText(" saved " + STORE.getAbsolutePath() + " ");
         } catch (Exception exception) {
-            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Password Vault", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Save failed:\n" + exception.getMessage(), "Password Vault");
         }
     }
 
@@ -3442,7 +3817,7 @@ class PasswordVaultFrame extends JInternalFrame {
 
     private void addEntry() {
         if (masterPassword == null) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         model.addEntry();
@@ -3450,7 +3825,7 @@ class PasswordVaultFrame extends JInternalFrame {
 
     private void removeEntry() {
         if (masterPassword == null || table.getSelectedRow() < 0) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         model.removeEntry(table.convertRowIndexToModel(table.getSelectedRow()));
@@ -3689,13 +4064,13 @@ class ImageViewerFrame extends JInternalFrame {
             zoom = 1.0;
             updateImage();
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "Image Viewer", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Open failed:\n" + exception.getMessage(), "Image Viewer");
         }
     }
 
     private void fit() {
         if (image == null) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         Dimension size = imageLabel.getParent().getSize();
@@ -3706,7 +4081,7 @@ class ImageViewerFrame extends JInternalFrame {
 
     private void setZoom(double nextZoom) {
         if (image == null) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         zoom = Math.max(0.1, Math.min(8.0, nextZoom));
@@ -3715,7 +4090,7 @@ class ImageViewerFrame extends JInternalFrame {
 
     private void rotate() {
         if (image == null) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         BufferedImage rotated = new BufferedImage(image.getHeight(), image.getWidth(), BufferedImage.TYPE_INT_ARGB);
@@ -3849,7 +4224,7 @@ class PaintFrame extends JInternalFrame {
             canvas.setImage(loaded);
             status.setText(" " + chooser.getSelectedFile().getName() + " " + loaded.getWidth() + "x" + loaded.getHeight() + " ");
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Open failed:\n" + exception.getMessage(), "Paint", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Open failed:\n" + exception.getMessage(), "Paint");
         }
     }
 
@@ -3865,7 +4240,7 @@ class PaintFrame extends JInternalFrame {
             ImageIO.write(canvas.image(), "png", file);
             status.setText(" saved " + file.getAbsolutePath() + " ");
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Paint", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Save failed:\n" + exception.getMessage(), "Paint");
         }
     }
 
@@ -4077,7 +4452,7 @@ class RemindersFrame extends JInternalFrame {
     private void addReminder() {
         String task = taskField.getText().trim();
         if (task.isEmpty()) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         model.addReminder(new Reminder(false, task, dueField.getText().trim()));
@@ -4088,7 +4463,7 @@ class RemindersFrame extends JInternalFrame {
 
     private void removeReminder() {
         if (table.getSelectedRow() < 0) {
-            Toolkit.getDefaultToolkit().beep();
+            DesktopSounds.playError();
             return;
         }
         model.removeReminder(table.convertRowIndexToModel(table.getSelectedRow()));
@@ -4117,7 +4492,7 @@ class RemindersFrame extends JInternalFrame {
             Files.writeString(STORE.toPath(), model.dump(), StandardCharsets.UTF_8);
             status.setText(" saved " + model.getRowCount() + " reminders ");
         } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this, "Save failed:\n" + exception.getMessage(), "Reminders", JOptionPane.ERROR_MESSAGE);
+            DesktopSounds.showError(this, "Save failed:\n" + exception.getMessage(), "Reminders");
         }
     }
 

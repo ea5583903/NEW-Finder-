@@ -31,6 +31,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
+import javax.swing.JWindow;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
@@ -59,10 +60,13 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.SecureRandom;
 import java.security.spec.KeySpec;
 import java.security.GeneralSecurityException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.util.ArrayList;
@@ -100,8 +104,10 @@ public class Main {
                 return;
             }
 
-            DesktopFrame frame = new DesktopFrame();
-            frame.setVisible(true);
+            Win95Startup.show(() -> {
+                DesktopFrame frame = new DesktopFrame();
+                frame.setVisible(true);
+            });
         });
     }
 
@@ -189,6 +195,131 @@ public class Main {
                 "Reset Account",
                 JOptionPane.INFORMATION_MESSAGE
         );
+    }
+}
+
+class Win95Startup {
+    private static final Color TEAL = new Color(0, 128, 128);
+    private static final int DURATION_MS = 3600;
+
+    static void show(Runnable afterStartup) {
+        JWindow splash = new JWindow();
+        StartupPanel panel = new StartupPanel();
+        splash.setContentPane(panel);
+        splash.setSize(panel.preferredSplashSize());
+        splash.setLocationRelativeTo(null);
+        splash.setAlwaysOnTop(true);
+        splash.setVisible(true);
+        playStartupSound();
+
+        javax.swing.Timer timer = new javax.swing.Timer(DURATION_MS, event -> {
+            splash.setVisible(false);
+            splash.dispose();
+            afterStartup.run();
+        });
+        timer.setRepeats(false);
+        timer.start();
+    }
+
+    private static void playStartupSound() {
+        new Thread(() -> {
+            try {
+                Path sound = extractSound();
+                String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+                ProcessBuilder player;
+                if (os.contains("mac")) {
+                    player = new ProcessBuilder("afplay", sound.toString());
+                } else if (os.contains("win")) {
+                    String uri = sound.toUri().toString().replace("'", "''");
+                    String command = "Add-Type -AssemblyName presentationCore; "
+                            + "$player = New-Object System.Windows.Media.MediaPlayer; "
+                            + "$player.Open([Uri]'" + uri + "'); "
+                            + "$player.Play(); Start-Sleep -Milliseconds 5000";
+                    player = new ProcessBuilder("powershell", "-NoProfile", "-Command", command);
+                } else {
+                    player = new ProcessBuilder("ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", sound.toString());
+                }
+                player.start();
+            } catch (Exception ignored) {
+            }
+        }, "win95-startup-sound").start();
+    }
+
+    private static Path extractSound() throws IOException {
+        Path sound = Files.createTempFile("mactonish-startup-", ".mp3");
+        sound.toFile().deleteOnExit();
+        try (InputStream input = Win95Startup.class.getResourceAsStream("/windows-xp-startup.mp3")) {
+            if (input == null) {
+                Path fallback = Path.of(System.getProperty("user.home"), "Downloads", "windows-xp-startup.mp3");
+                if (!Files.exists(fallback)) {
+                    fallback = Path.of(System.getProperty("user.home"), "downloads", "windows-xp-startup.mp3");
+                }
+                Files.copy(fallback, sound, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                Files.copy(input, sound, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+        return sound;
+    }
+
+    private static class StartupPanel extends JPanel {
+        private final BufferedImage startupImage;
+
+        StartupPanel() {
+            setBackground(TEAL);
+            setBorder(BorderFactory.createLineBorder(Color.BLACK, 2));
+            startupImage = loadStartupImage();
+        }
+
+        Dimension preferredSplashSize() {
+            if (startupImage == null) {
+                return new Dimension(640, 420);
+            }
+            return new Dimension(startupImage.getWidth(), startupImage.getHeight());
+        }
+
+        private BufferedImage loadStartupImage() {
+            try (InputStream input = Win95Startup.class.getResourceAsStream("/win.png")) {
+                if (input != null) {
+                    return ImageIO.read(input);
+                }
+            } catch (IOException ignored) {
+            }
+
+            try {
+                Path fallback = Path.of(System.getProperty("user.home"), "Downloads", "win.png");
+                if (!Files.exists(fallback)) {
+                    fallback = Path.of(System.getProperty("user.home"), "downloads", "win.png");
+                }
+                if (Files.exists(fallback)) {
+                    return ImageIO.read(fallback.toFile());
+                }
+            } catch (IOException ignored) {
+            }
+            return null;
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+
+            if (startupImage != null) {
+                g.drawImage(startupImage, 0, 0, getWidth(), getHeight(), null);
+            } else {
+                g.setColor(Color.BLACK);
+                g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 66));
+                g.drawString("Windows", 142, 180);
+                g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 92));
+                g.drawString("95", 392, 214);
+                g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 19));
+                g.drawString("Starting up...", 245, 258);
+            }
+
+            g.dispose();
+        }
     }
 }
 

@@ -22,7 +22,7 @@ rm -rf "$BUILD_DIR" "$PKG_PATH"
 mkdir -p "$CLASSES_DIR" "$MACOS_DIR" "$RESOURCES_DIR" "$DIST_DIR"
 
 javac --release 17 -d "$CLASSES_DIR" src/Main.java
-jar --create --file "$RESOURCES_DIR/$JAR_NAME" --main-class Main -C "$CLASSES_DIR" .
+jar --create --file "$RESOURCES_DIR/$JAR_NAME" --main-class Main -C "$CLASSES_DIR" . -C resources .
 
 cat > "$MACOS_DIR/$APP_NAME" <<EOF
 #!/usr/bin/env sh

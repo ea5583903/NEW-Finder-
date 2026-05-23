@@ -101,7 +101,7 @@ import javax.sound.midi.MidiChannel;
 public class Main {
     private static final Preferences PREFS = Preferences.userRoot().node("mactonish");
     private static final String DEFAULT_DESKTOP_PASSWORD = "soap";
-    private static final String SECONDARY_DESKTOP_PASSWORD = "chip";
+    private static final String SECONDARY_DESKTOP_PASSWORD = "soap_taste_good";
 
     public static void main(String[] args) {
         EventQueue.invokeLater(() -> {

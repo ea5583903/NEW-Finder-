@@ -13,6 +13,7 @@ import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JInternalFrame;
+import javax.swing.JColorChooser;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
 import javax.swing.JMenu;
@@ -36,6 +37,8 @@ import javax.swing.WindowConstants;
 import javax.swing.JWindow;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.InternalFrameAdapter;
+import javax.swing.event.InternalFrameEvent;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.text.JTextComponent;
@@ -45,6 +48,8 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import java.awt.BorderLayout;
 import java.awt.BasicStroke;
+import java.awt.AWTEvent;
+import java.awt.Toolkit;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -80,6 +85,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.prefs.Preferences;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -93,7 +99,8 @@ import javax.sound.midi.Synthesizer;
 import javax.sound.midi.MidiChannel;
 // stack overflow
 public class Main {
-    private static final String DESKTOP_PASSWORD = "soap";
+    private static final Preferences PREFS = Preferences.userRoot().node("mactonish");
+    private static final String DEFAULT_DESKTOP_PASSWORD = "soap";
     private static final String SECONDARY_DESKTOP_PASSWORD = "chip";
 
     public static void main(String[] args) {
@@ -173,7 +180,7 @@ public class Main {
 
             char[] entered = passwordField.getPassword();
             String password = new String(entered);
-            boolean correct = DESKTOP_PASSWORD.equals(password) || SECONDARY_DESKTOP_PASSWORD.equals(password);
+            boolean correct = desktopPassword().equals(password) || SECONDARY_DESKTOP_PASSWORD.equals(password);
             Arrays.fill(entered, '\0');
             if (correct) {
                 return true;
@@ -217,6 +224,34 @@ public class Main {
                 JOptionPane.INFORMATION_MESSAGE
         );
     }
+
+    static String desktopPassword() {
+        return PREFS.get("desktopPassword", DEFAULT_DESKTOP_PASSWORD);
+    }
+
+    static void setDesktopPassword(String password) {
+        if (password != null && !password.isBlank()) {
+            PREFS.put("desktopPassword", password);
+        }
+    }
+
+    static boolean startupSoundEnabled() {
+        return PREFS.getBoolean("startupSound", true);
+    }
+
+    static void setStartupSoundEnabled(boolean enabled) {
+        PREFS.putBoolean("startupSound", enabled);
+    }
+
+    static Color desktopColor() {
+        return new Color(PREFS.getInt("desktopColor", new Color(104, 144, 152).getRGB()));
+    }
+
+    static void setDesktopColor(Color color) {
+        if (color != null) {
+            PREFS.putInt("desktopColor", color.getRGB());
+        }
+    }
 }
 
 class Win95Startup {
@@ -243,6 +278,9 @@ class Win95Startup {
     }
 
     private static void playStartupSound() {
+        if (!Main.startupSoundEnabled()) {
+            return;
+        }
         new Thread(() -> {
             try {
                 Path sound = extractSound();
@@ -474,6 +512,7 @@ class PiOSSystemCheck {
 class BsodTrigger {
     private static boolean installed;
     private static boolean suppressNextEmergencyTypedKey;
+    private static javax.swing.Timer idleTimer;
     private static final StringBuilder TYPED = new StringBuilder();
     private static final StringBuilder RECENT_TEXT = new StringBuilder();
     private static final String[] BLUE_SCREEN_CAUSES = {
@@ -496,7 +535,12 @@ class BsodTrigger {
             "diskutil erasedisk",
             "dd if=/dev/zero of=/dev/",
             "bcdedit /delete",
-            "reg delete hklm\\system"
+            "reg delete hklm\\system",
+            "settings crash",
+            "wallpaper panic",
+            "taskbar crash",
+            "trash panic",
+            "empty trash"
     };
 
     static void install() {
@@ -504,7 +548,9 @@ class BsodTrigger {
             return;
         }
         installed = true;
+        installIdleTimeout();
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(event -> {
+            resetIdleTimer();
             if (event.getID() == KeyEvent.KEY_PRESSED && isEmergencyShortcut(event)) {
                 suppressNextEmergencyTypedKey = true;
                 EmergencyPanel.show();
@@ -559,6 +605,43 @@ class BsodTrigger {
             }
             return false;
         });
+    }
+
+    private static void installIdleTimeout() {
+        idleTimer = new javax.swing.Timer(10_000, event -> {
+            idleTimer.stop();
+            BsodScreen.show(
+                    KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(),
+                    "SESSION_TIMOUT"
+            );
+        });
+        idleTimer.setRepeats(false);
+        idleTimer.start();
+
+        Toolkit.getDefaultToolkit().addAWTEventListener(event -> {
+            if (isActivityEvent(event)) {
+                resetIdleTimer();
+            }
+        }, AWTEvent.MOUSE_EVENT_MASK
+                | AWTEvent.MOUSE_MOTION_EVENT_MASK
+                | AWTEvent.MOUSE_WHEEL_EVENT_MASK
+                | AWTEvent.KEY_EVENT_MASK);
+    }
+
+    private static boolean isActivityEvent(AWTEvent event) {
+        return event.getID() == MouseEvent.MOUSE_MOVED
+                || event.getID() == MouseEvent.MOUSE_DRAGGED
+                || event.getID() == MouseEvent.MOUSE_PRESSED
+                || event.getID() == MouseEvent.MOUSE_RELEASED
+                || event.getID() == MouseEvent.MOUSE_WHEEL
+                || event.getID() == KeyEvent.KEY_PRESSED
+                || event.getID() == KeyEvent.KEY_TYPED;
+    }
+
+    private static void resetIdleTimer() {
+        if (idleTimer != null) {
+            idleTimer.restart();
+        }
     }
 
     private static boolean isEmergencyShortcut(KeyEvent event) {
@@ -706,6 +789,18 @@ class EmergencyPanel {
                 dialog.dispose();
                 BsodScreen.show(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
             }
+            case "function:settings-bsod" -> {
+                dialog.dispose();
+                BsodScreen.show(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(), "SETTINGS_CONTROL_PANEL_FAILURE");
+            }
+            case "function:trash-bsod" -> {
+                dialog.dispose();
+                BsodScreen.show(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(), "TRASH_COMPACTOR_OVERFLOW");
+            }
+            case "function:taskbar-bsod" -> {
+                dialog.dispose();
+                BsodScreen.show(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow(), "TASKBAR_WINDOW_SWITCHER_FAULT");
+            }
             default -> {
                 dialog.dispose();
                 BsodScreen.showCorrupted(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
@@ -848,11 +943,12 @@ class BsodScreen {
 }
 
 class DesktopFrame extends JFrame {
-    private static final Color DESKTOP = new Color(104, 144, 152);
     private static final Color PAPER = new Color(238, 238, 226);
     private static final Color INK = Color.BLACK;
 
     private final JDesktopPane desktop = new JDesktopPane();
+    private final JPanel taskbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 3));
+    private final List<JButton> desktopIcons = new ArrayList<>();
     private FinderFrame finder;
     private PRunFrame pRun;
     private TerminalFrame terminal;
@@ -869,6 +965,7 @@ class DesktopFrame extends JFrame {
     private ImageViewerFrame imageViewer;
     private PaintFrame paint;
     private RemindersFrame reminders;
+    private SettingsFrame settings;
 
     DesktopFrame() {
         super("Mactonish System");
@@ -878,9 +975,16 @@ class DesktopFrame extends JFrame {
         setLocationRelativeTo(null);
         setJMenuBar(buildSystemMenu());
 
-        desktop.setBackground(DESKTOP);
+        desktop.setBackground(Main.desktopColor());
         desktop.setLayout(null);
-        setContentPane(desktop);
+
+        taskbar.setBackground(PAPER);
+        taskbar.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.add(desktop, BorderLayout.CENTER);
+        root.add(taskbar, BorderLayout.SOUTH);
+        setContentPane(root);
 
         addDesktopIcon("Finder", 34, 34, this::openFinder);
         addDesktopIcon("P-Run", 34, 134, this::openPRun);
@@ -898,6 +1002,7 @@ class DesktopFrame extends JFrame {
         addDesktopIcon("Images", 246, 34, this::openImageViewer);
         addDesktopIcon("Paint", 246, 134, this::openPaint);
         addDesktopIcon("Reminders", 246, 234, this::openReminders);
+        addDesktopIcon("Settings", 246, 334, this::openSettings);
         addDeskPlate();
         openFinder();
     }
@@ -911,7 +1016,7 @@ class DesktopFrame extends JFrame {
         JMenuItem about = new JMenuItem("About This Computer");
         about.addActionListener(event -> JOptionPane.showMessageDialog(
                 this,
-                "Mactonish System 1.5.3\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, and Reminders are built in.",
+                "Mactonish System 1.5.3\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, Reminders, and Settings are built in.",
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));
@@ -956,6 +1061,8 @@ class DesktopFrame extends JFrame {
         paintItem.addActionListener(event -> openPaint());
         JMenuItem remindersItem = new JMenuItem("Reminders");
         remindersItem.addActionListener(event -> openReminders());
+        JMenuItem settingsItem = new JMenuItem("Settings");
+        settingsItem.addActionListener(event -> openSettings());
         apps.add(finderItem);
         apps.add(pRunItem);
         apps.add(terminalItem);
@@ -972,11 +1079,15 @@ class DesktopFrame extends JFrame {
         apps.add(imagesItem);
         apps.add(paintItem);
         apps.add(remindersItem);
+        apps.add(settingsItem);
 
         JMenu view = new JMenu("Desktop");
         JMenuItem arrange = new JMenuItem("Clean Up Icons");
         arrange.addActionListener(event -> arrangeIcons());
+        JMenuItem taskbarBsod = new JMenuItem("Trigger Taskbar BSOD");
+        taskbarBsod.addActionListener(event -> BsodScreen.show(this, "TASKBAR_WINDOW_SWITCHER_FAULT"));
         view.add(arrange);
+        view.add(taskbarBsod);
 
         bar.add(apple);
         bar.add(apps);
@@ -998,7 +1109,64 @@ class DesktopFrame extends JFrame {
                 BorderFactory.createEmptyBorder(4, 4, 4, 4)
         ));
         icon.addActionListener(event -> action.run());
+        desktopIcons.add(icon);
         desktop.add(icon, JLayeredPane.DEFAULT_LAYER);
+    }
+
+    void applyDesktopColor(Color color) {
+        desktop.setBackground(color);
+        Main.setDesktopColor(color);
+    }
+
+    void setStartupSoundEnabled(boolean enabled) {
+        Main.setStartupSoundEnabled(enabled);
+    }
+
+    void updateDesktopPassword(String password) {
+        Main.setDesktopPassword(password);
+    }
+
+    void cleanUpIcons() {
+        arrangeIcons();
+    }
+
+    private void trackWindow(JInternalFrame frame) {
+        JButton button = new JButton(frame.getTitle());
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 11));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 1),
+                BorderFactory.createEmptyBorder(2, 8, 2, 8)
+        ));
+        button.addActionListener(event -> {
+            try {
+                frame.setIcon(false);
+                frame.moveToFront();
+                frame.setSelected(true);
+            } catch (Exception ignored) {
+            }
+        });
+        frame.addInternalFrameListener(new InternalFrameAdapter() {
+            public void internalFrameClosed(InternalFrameEvent event) {
+                taskbar.remove(button);
+                taskbar.revalidate();
+                taskbar.repaint();
+            }
+
+            public void internalFrameActivated(InternalFrameEvent event) {
+                for (Component component : taskbar.getComponents()) {
+                    component.setBackground(PAPER);
+                    component.setForeground(INK);
+                }
+                button.setBackground(INK);
+                button.setForeground(Color.WHITE);
+            }
+        });
+        taskbar.add(button);
+        taskbar.revalidate();
+        taskbar.repaint();
     }
 
     private void addDeskPlate() {
@@ -1017,6 +1185,7 @@ class DesktopFrame extends JFrame {
             if (finder == null || finder.isClosed()) {
                 finder = new FinderFrame();
                 desktop.add(finder, JLayeredPane.PALETTE_LAYER);
+                trackWindow(finder);
                 finder.setVisible(true);
             }
             finder.setIcon(false);
@@ -1031,6 +1200,7 @@ class DesktopFrame extends JFrame {
             if (pRun == null || pRun.isClosed()) {
                 pRun = new PRunFrame();
                 desktop.add(pRun, JLayeredPane.PALETTE_LAYER);
+                trackWindow(pRun);
                 pRun.setVisible(true);
             }
             pRun.setIcon(false);
@@ -1045,6 +1215,7 @@ class DesktopFrame extends JFrame {
             if (terminal == null || terminal.isClosed()) {
                 terminal = new TerminalFrame();
                 desktop.add(terminal, JLayeredPane.PALETTE_LAYER);
+                trackWindow(terminal);
                 terminal.setVisible(true);
             }
             terminal.setIcon(false);
@@ -1059,6 +1230,7 @@ class DesktopFrame extends JFrame {
             if (notepad == null || notepad.isClosed()) {
                 notepad = new NotepadFrame();
                 desktop.add(notepad, JLayeredPane.PALETTE_LAYER);
+                trackWindow(notepad);
                 notepad.setVisible(true);
             }
             notepad.setIcon(false);
@@ -1073,6 +1245,7 @@ class DesktopFrame extends JFrame {
             if (appCreator == null || appCreator.isClosed()) {
                 appCreator = new AppCreatorFrame();
                 desktop.add(appCreator, JLayeredPane.PALETTE_LAYER);
+                trackWindow(appCreator);
                 appCreator.setVisible(true);
             }
             appCreator.setIcon(false);
@@ -1087,6 +1260,7 @@ class DesktopFrame extends JFrame {
             if (fileEditor == null || fileEditor.isClosed()) {
                 fileEditor = new FileEditorFrame();
                 desktop.add(fileEditor, JLayeredPane.PALETTE_LAYER);
+                trackWindow(fileEditor);
                 fileEditor.setVisible(true);
             }
             fileEditor.setIcon(false);
@@ -1101,6 +1275,7 @@ class DesktopFrame extends JFrame {
             if (musicEditor == null || musicEditor.isClosed()) {
                 musicEditor = new MusicEditorFrame();
                 desktop.add(musicEditor, JLayeredPane.PALETTE_LAYER);
+                trackWindow(musicEditor);
                 musicEditor.setVisible(true);
             }
             musicEditor.setIcon(false);
@@ -1115,6 +1290,7 @@ class DesktopFrame extends JFrame {
             if (calculator == null || calculator.isClosed()) {
                 calculator = new CalculatorFrame();
                 desktop.add(calculator, JLayeredPane.PALETTE_LAYER);
+                trackWindow(calculator);
                 calculator.setVisible(true);
             }
             calculator.setIcon(false);
@@ -1129,6 +1305,7 @@ class DesktopFrame extends JFrame {
             if (clock == null || clock.isClosed()) {
                 clock = new ClockFrame();
                 desktop.add(clock, JLayeredPane.PALETTE_LAYER);
+                trackWindow(clock);
                 clock.setVisible(true);
             }
             clock.setIcon(false);
@@ -1143,6 +1320,7 @@ class DesktopFrame extends JFrame {
             if (systemInfo == null || systemInfo.isClosed()) {
                 systemInfo = new SystemInfoFrame();
                 desktop.add(systemInfo, JLayeredPane.PALETTE_LAYER);
+                trackWindow(systemInfo);
                 systemInfo.setVisible(true);
             }
             systemInfo.setIcon(false);
@@ -1157,6 +1335,7 @@ class DesktopFrame extends JFrame {
             if (help == null || help.isClosed()) {
                 help = new HelpFrame();
                 desktop.add(help, JLayeredPane.PALETTE_LAYER);
+                trackWindow(help);
                 help.setVisible(true);
             }
             help.setIcon(false);
@@ -1171,6 +1350,7 @@ class DesktopFrame extends JFrame {
             if (sshPhp == null || sshPhp.isClosed()) {
                 sshPhp = new SshPhpFrame();
                 desktop.add(sshPhp, JLayeredPane.PALETTE_LAYER);
+                trackWindow(sshPhp);
                 sshPhp.setVisible(true);
             }
             sshPhp.setIcon(false);
@@ -1185,6 +1365,7 @@ class DesktopFrame extends JFrame {
             if (passwordVault == null || passwordVault.isClosed()) {
                 passwordVault = new PasswordVaultFrame();
                 desktop.add(passwordVault, JLayeredPane.PALETTE_LAYER);
+                trackWindow(passwordVault);
                 passwordVault.setVisible(true);
             }
             passwordVault.setIcon(false);
@@ -1199,6 +1380,7 @@ class DesktopFrame extends JFrame {
             if (imageViewer == null || imageViewer.isClosed()) {
                 imageViewer = new ImageViewerFrame();
                 desktop.add(imageViewer, JLayeredPane.PALETTE_LAYER);
+                trackWindow(imageViewer);
                 imageViewer.setVisible(true);
             }
             imageViewer.setIcon(false);
@@ -1213,6 +1395,7 @@ class DesktopFrame extends JFrame {
             if (paint == null || paint.isClosed()) {
                 paint = new PaintFrame();
                 desktop.add(paint, JLayeredPane.PALETTE_LAYER);
+                trackWindow(paint);
                 paint.setVisible(true);
             }
             paint.setIcon(false);
@@ -1227,6 +1410,7 @@ class DesktopFrame extends JFrame {
             if (reminders == null || reminders.isClosed()) {
                 reminders = new RemindersFrame();
                 desktop.add(reminders, JLayeredPane.PALETTE_LAYER);
+                trackWindow(reminders);
                 reminders.setVisible(true);
             }
             reminders.setIcon(false);
@@ -1236,14 +1420,153 @@ class DesktopFrame extends JFrame {
         }
     }
 
+    private void openSettings() {
+        try {
+            if (settings == null || settings.isClosed()) {
+                settings = new SettingsFrame(this);
+                desktop.add(settings, JLayeredPane.PALETTE_LAYER);
+                trackWindow(settings);
+                settings.setVisible(true);
+            }
+            settings.setIcon(false);
+            settings.moveToFront();
+            settings.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
     private void arrangeIcons() {
         int y = 34;
-        for (Component component : desktop.getComponents()) {
-            if (component instanceof JButton) {
-                component.setBounds(34, y, 92, 76);
-                y += 100;
+        int x = 34;
+        for (JButton icon : desktopIcons) {
+            icon.setBounds(x, y, 92, 76);
+            y += 100;
+            if (y > desktop.getHeight() - 120) {
+                y = 34;
+                x += 106;
             }
         }
+    }
+}
+
+class SettingsFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final DesktopFrame desktopFrame;
+    private final JCheckBox startupSound = new JCheckBox("Play startup sound");
+    private final JPasswordField password = new JPasswordField(18);
+    private final JLabel status = new JLabel(" ready ");
+    private Color selectedColor = Main.desktopColor();
+
+    SettingsFrame(DesktopFrame desktopFrame) {
+        super("Settings", true, true, true, true);
+        this.desktopFrame = desktopFrame;
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(460, 330);
+        setLocation(570, 120);
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu settings = new JMenu("Settings");
+        JMenuItem save = new JMenuItem("Save");
+        save.addActionListener(event -> saveSettings());
+        JMenuItem bsod = new JMenuItem("Trigger Settings BSOD");
+        bsod.addActionListener(event -> BsodScreen.show(this, "SETTINGS_CONTROL_PANEL_FAILURE"));
+        JMenuItem close = new JMenuItem("Close");
+        close.addActionListener(event -> dispose());
+        settings.add(save);
+        settings.add(bsod);
+        settings.add(close);
+        bar.add(settings);
+        return bar;
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" SYSTEM SETTINGS ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(titleText, BorderLayout.CENTER);
+        root.add(title, BorderLayout.NORTH);
+
+        JPanel form = new JPanel(new java.awt.GridLayout(0, 1, 6, 6));
+        form.setBackground(PAPER);
+        form.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
+
+        startupSound.setBackground(PAPER);
+        startupSound.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        startupSound.setSelected(Main.startupSoundEnabled());
+        form.add(startupSound);
+
+        JButton colorButton = retroButton("Choose Wallpaper Color", this::chooseColor);
+        form.add(colorButton);
+
+        JPanel passwordRow = new JPanel(new BorderLayout(6, 0));
+        passwordRow.setBackground(PAPER);
+        JLabel passwordLabel = new JLabel("New desktop password:");
+        passwordLabel.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        password.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        passwordRow.add(passwordLabel, BorderLayout.WEST);
+        passwordRow.add(password, BorderLayout.CENTER);
+        form.add(passwordRow);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("Save Settings", this::saveSettings));
+        buttons.add(retroButton("Clean Up Icons", desktopFrame::cleanUpIcons));
+        form.add(buttons);
+
+        root.add(form, BorderLayout.CENTER);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void chooseColor() {
+        Color color = JColorChooser.showDialog(this, "Wallpaper Color", selectedColor);
+        if (color != null) {
+            selectedColor = color;
+            desktopFrame.applyDesktopColor(color);
+            status.setText(" wallpaper updated ");
+        }
+    }
+
+    private void saveSettings() {
+        desktopFrame.setStartupSoundEnabled(startupSound.isSelected());
+        char[] entered = password.getPassword();
+        String newPassword = new String(entered);
+        Arrays.fill(entered, '\0');
+        if (!newPassword.isBlank()) {
+            desktopFrame.updateDesktopPassword(newPassword);
+            password.setText("");
+            status.setText(" settings saved with new password ");
+            return;
+        }
+        status.setText(" settings saved ");
     }
 }
 
@@ -2932,6 +3255,7 @@ class FinderFrame extends JInternalFrame {
     private static final Color INK = Color.BLACK;
     private static final Color SHADE = new Color(184, 184, 176);
     private static final Color SELECTED = Color.BLACK;
+    private static final File TRASH = new File(System.getProperty("user.home"), ".mactonish/Trash");
 
     private final DefaultTreeModel treeModel;
     private final JTree tree;
@@ -2967,6 +3291,7 @@ class FinderFrame extends JInternalFrame {
         addQuickLocation(root, "Home Folder", new File(System.getProperty("user.home")));
         addQuickLocation(root, "Desktop", new File(System.getProperty("user.home"), "Desktop"));
         addQuickLocation(root, "Documents", new File(System.getProperty("user.home"), "Documents"));
+        root.add(directoryNode("Trash", TRASH));
 
         treeModel = new DefaultTreeModel(root);
         tree = new JTree(treeModel);
@@ -3085,6 +3410,9 @@ class FinderFrame extends JInternalFrame {
         }));
         toolbar.add(retroButton("Open Disk...", this::chooseFolder));
         toolbar.add(retroButton("Refresh", this::refreshDirectory));
+        toolbar.add(retroButton("Trash", () -> openDirectory(TRASH)));
+        toolbar.add(retroButton("Move to Trash", this::moveSelectionToTrash));
+        toolbar.add(retroButton("Empty Trash", this::emptyTrash));
         toolbar.add(retroButton("Save", this::saveEditor));
         toolbar.add(retroButton("Reload", this::reloadEditor));
 
@@ -3152,9 +3480,21 @@ class FinderFrame extends JInternalFrame {
         JMenu file = new JMenu("File");
         JMenuItem open = new JMenuItem("Open Folder...");
         open.addActionListener(event -> chooseFolder());
+        JMenuItem trash = new JMenuItem("Open Trash");
+        trash.addActionListener(event -> openDirectory(TRASH));
+        JMenuItem moveToTrash = new JMenuItem("Move Selected to Trash");
+        moveToTrash.addActionListener(event -> moveSelectionToTrash());
+        JMenuItem emptyTrash = new JMenuItem("Empty Trash");
+        emptyTrash.addActionListener(event -> emptyTrash());
+        JMenuItem trashBsod = new JMenuItem("Trigger Trash BSOD");
+        trashBsod.addActionListener(event -> BsodScreen.show(this, "TRASH_COMPACTOR_OVERFLOW"));
         JMenuItem quit = new JMenuItem("Quit");
         quit.addActionListener(event -> dispose());
         file.add(open);
+        file.add(trash);
+        file.add(moveToTrash);
+        file.add(emptyTrash);
+        file.add(trashBsod);
         file.add(quit);
 
         JMenu view = new JMenu("View");
@@ -3225,7 +3565,16 @@ class FinderFrame extends JInternalFrame {
 
     private void openDirectory(File directory) {
         if (directory == null || !directory.isDirectory()) {
-            return;
+            if (TRASH.equals(directory)) {
+                try {
+                    Files.createDirectories(TRASH.toPath());
+                } catch (IOException exception) {
+                    DesktopSounds.showError(this, "Could not create Trash:\n" + exception.getMessage(), "Finder");
+                    return;
+                }
+            } else {
+                return;
+            }
         }
         if (!confirmDiscardChanges()) {
             return;
@@ -3239,9 +3588,116 @@ class FinderFrame extends JInternalFrame {
         if (currentDirectory == null) {
             return;
         }
+        if (TRASH.equals(currentDirectory) && !currentDirectory.exists()) {
+            try {
+                Files.createDirectories(currentDirectory.toPath());
+            } catch (IOException exception) {
+                DesktopSounds.showError(this, "Could not open Trash:\n" + exception.getMessage(), "Finder");
+                return;
+            }
+        }
         tableModel.setDirectory(currentDirectory);
         pathLabel.setText("  " + currentDirectory.getAbsolutePath());
         countLabel.setText("  " + tableModel.getRowCount() + " items  ");
+    }
+
+    private void moveSelectionToTrash() {
+        File file = selectedTableFile();
+        if (file == null) {
+            DesktopSounds.playError();
+            return;
+        }
+        if (TRASH.equals(file) || isInsideTrash(file)) {
+            DesktopSounds.showError(this, "That item is already in Trash.", "Finder");
+            return;
+        }
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Move \"" + file.getName() + "\" to Trash?",
+                "Finder",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+        try {
+            Files.createDirectories(TRASH.toPath());
+            Files.move(file.toPath(), availableTrashPath(file));
+            closeEditorWithoutPrompt();
+            refreshDirectory();
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Move to Trash failed:\n" + exception.getMessage(), "Finder");
+        }
+    }
+
+    private Path availableTrashPath(File file) {
+        Path target = TRASH.toPath().resolve(file.getName());
+        if (!Files.exists(target)) {
+            return target;
+        }
+        String name = file.getName();
+        String base = name;
+        String extension = "";
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) {
+            base = name.substring(0, dot);
+            extension = name.substring(dot);
+        }
+        int copy = 2;
+        while (Files.exists(target)) {
+            target = TRASH.toPath().resolve(base + " copy " + copy + extension);
+            copy++;
+        }
+        return target;
+    }
+
+    private boolean isInsideTrash(File file) {
+        try {
+            return file.toPath().toRealPath().startsWith(TRASH.toPath().toRealPath());
+        } catch (IOException exception) {
+            return false;
+        }
+    }
+
+    private void emptyTrash() {
+        if (!TRASH.exists()) {
+            return;
+        }
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Permanently delete all items in Trash?",
+                "Finder",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
+        File[] files = TRASH.listFiles();
+        if (files == null) {
+            return;
+        }
+        try {
+            for (File file : files) {
+                deleteRecursive(file.toPath());
+            }
+            closeEditorWithoutPrompt();
+            refreshDirectory();
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Empty Trash failed:\n" + exception.getMessage(), "Finder");
+        }
+    }
+
+    private void deleteRecursive(Path path) throws IOException {
+        if (Files.isDirectory(path)) {
+            try (java.util.stream.Stream<Path> children = Files.list(path)) {
+                for (Path child : children.toList()) {
+                    deleteRecursive(child);
+                }
+            }
+        }
+        Files.deleteIfExists(path);
     }
 
     private void chooseFolder() {
@@ -4790,6 +5246,7 @@ class HelpFrame extends JInternalFrame {
                 Images      Open, zoom, fit, and rotate image files.
                 Paint       Draw simple PNG images with colors and brush sizes.
                 Reminders   Track tasks with due text and done checkboxes.
+                Settings    Change wallpaper, startup sound, password, and icons.
                 Calculator  Basic arithmetic with parentheses.
                 Clock       Local date and time.
                 Sys Info    Java, OS, memory, CPU, and disk information.
@@ -4804,7 +5261,11 @@ class HelpFrame extends JInternalFrame {
                   # comments, and tempo controls the beat length.
                 - SSH Connect uses PHP to run system ssh/scp commands and keeps
                   output inside the Mactonish window.
-                - Vault and Reminders save under ~/.mactonish.
+                - Finder moves deleted files to ~/.mactonish/Trash.
+                - Vault, Trash, and Reminders save under ~/.mactonish.
+                - Use the bottom taskbar to switch between open windows.
+                - Emergency Panel commands include function:settings-bsod,
+                  function:trash-bsod, and function:taskbar-bsod.
                 """);
         setContentPane(new JScrollPane(help));
     }

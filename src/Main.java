@@ -9,6 +9,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JDesktopPane;
+import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JInternalFrame;
@@ -53,6 +54,7 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.KeyboardFocusManager;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -89,9 +91,9 @@ import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.Synthesizer;
 import javax.sound.midi.MidiChannel;
-
+// stack overflow
 public class Main {
-    private static final String DESKTOP_PASSWORD = "misscircle";
+    private static final String DESKTOP_PASSWORD = "soap";
     private static final String SECONDARY_DESKTOP_PASSWORD = "chip";
 
     public static void main(String[] args) {
@@ -112,6 +114,23 @@ public class Main {
                 frame.setVisible(true);
             }));
         });
+    }
+
+    static void logoutSession() {
+        BsodScreen.reset();
+        for (Window window : Window.getWindows()) {
+            if (window.isDisplayable()) {
+                window.dispose();
+            }
+        }
+        if (!unlockDesktop()) {
+            System.exit(0);
+            return;
+        }
+        Win95Startup.show(() -> PiOSSystemCheck.show(() -> {
+            DesktopFrame frame = new DesktopFrame();
+            frame.setVisible(true);
+        }));
     }
 
     private static boolean unlockDesktop() {
@@ -454,6 +473,7 @@ class PiOSSystemCheck {
 
 class BsodTrigger {
     private static boolean installed;
+    private static boolean suppressNextEmergencyTypedKey;
     private static final StringBuilder TYPED = new StringBuilder();
     private static final StringBuilder RECENT_TEXT = new StringBuilder();
     private static final String[] BLUE_SCREEN_CAUSES = {
@@ -485,6 +505,15 @@ class BsodTrigger {
         }
         installed = true;
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(event -> {
+            if (event.getID() == KeyEvent.KEY_PRESSED && isEmergencyShortcut(event)) {
+                suppressNextEmergencyTypedKey = true;
+                EmergencyPanel.show();
+                return true;
+            }
+            if (event.getID() == KeyEvent.KEY_TYPED && suppressNextEmergencyTypedKey) {
+                suppressNextEmergencyTypedKey = false;
+                return true;
+            }
             if (event.getID() != KeyEvent.KEY_TYPED) {
                 return false;
             }
@@ -530,6 +559,23 @@ class BsodTrigger {
             }
             return false;
         });
+    }
+
+    private static boolean isEmergencyShortcut(KeyEvent event) {
+        return event.getKeyCode() == KeyEvent.VK_G
+                && !event.isShiftDown()
+                && !event.isControlDown()
+                && !event.isMetaDown()
+                && !event.isAltDown()
+                && focusAllowsEmergencyShortcut();
+    }
+
+    private static boolean focusAllowsEmergencyShortcut() {
+        Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        if (focusOwner == null) {
+            return true;
+        }
+        return !(focusOwner instanceof JTextComponent textComponent) || !textComponent.isEditable();
     }
 
     private static boolean shouldTreatTypingAsDesktopError() {
@@ -593,6 +639,81 @@ class BsodTrigger {
     }
 }
 
+class EmergencyPanel {
+    private static JDialog current;
+
+    static void show() {
+        if (current != null && current.isDisplayable()) {
+            current.toFront();
+            current.requestFocus();
+            return;
+        }
+
+        Window owner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
+        JDialog dialog = new JDialog(owner, "Emergency Panel");
+        current = dialog;
+
+        JTextField command = new JTextField(24);
+        JLabel status = new JLabel(" ");
+        JButton run = new JButton("Run");
+        JButton close = new JButton("Close");
+
+        JPanel body = new JPanel(new BorderLayout(8, 8));
+        body.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        body.add(new JLabel("Command:"), BorderLayout.NORTH);
+        body.add(command, BorderLayout.CENTER);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        buttons.add(status);
+        buttons.add(run);
+        buttons.add(close);
+        body.add(buttons, BorderLayout.SOUTH);
+
+        Runnable runCommand = () -> execute(command.getText(), status, dialog);
+        run.addActionListener(event -> runCommand.run());
+        command.addActionListener(event -> runCommand.run());
+        close.addActionListener(event -> dialog.dispose());
+
+        dialog.setContentPane(body);
+        dialog.setAlwaysOnTop(true);
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        dialog.setSize(380, 132);
+        dialog.setLocationRelativeTo(owner);
+        dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosed(java.awt.event.WindowEvent event) {
+                if (current == dialog) {
+                    current = null;
+                }
+            }
+        });
+        dialog.setVisible(true);
+        command.requestFocusInWindow();
+    }
+
+    private static void execute(String rawCommand, JLabel status, JDialog dialog) {
+        String command = rawCommand.trim().toLowerCase(Locale.ROOT);
+        switch (command) {
+            case "function:rm-bsod" -> {
+                BsodScreen.reset();
+                status.setText("BSOD reset");
+            }
+            case "function:kill-session" -> {
+                dialog.dispose();
+                Main.logoutSession();
+            }
+            case "function:trig-bsod" -> {
+                dialog.dispose();
+                BsodScreen.show(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
+            }
+            default -> {
+                dialog.dispose();
+                BsodScreen.showCorrupted(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
+            }
+        }
+    }
+}
+
 class BsodScreen {
     private static JWindow current;
 
@@ -608,7 +729,23 @@ class BsodScreen {
         show(owner, ">:( ", new Color(170, 0, 0), "666_TRIGGERED");
     }
 
+    static void showCorrupted(Component owner) {
+        reset();
+        show(owner, "ę̸͕͖̼̩͚̦̜̤̦̗͌͑͋̿̍̑͌̇́̔͒̅͠ͅr̸͙̣̯͙̠̳͈̥̥̈́̍̈́̆̌͘͝r̵̝͇̘̬̬̫̖͎͙͖̲͇͚̯̲̈́͑͋̕̚͜o̴̰̖̅͌̓̈́̉͊̈́́̿̍̓r̸̡̜̬̲͈̭̻̀̀̎͆́̃̏̂̚̚͝", new Color(64, 0, 96), "STACK_OVERFLOW_ET_TERMINATED", true);
+    }
+
+    static void reset() {
+        if (current != null) {
+            current.dispose();
+            current = null;
+        }
+    }
+
     private static void show(Component owner, String face, Color background, String reason) {
+        show(owner, face, background, reason, false);
+    }
+
+    private static void show(Component owner, String face, Color background, String reason, boolean multicolor) {
         if (current != null && current.isVisible()) {
             current.toFront();
             current.requestFocusInWindow();
@@ -618,11 +755,45 @@ class BsodScreen {
 
         JWindow screen = new JWindow();
         current = screen;
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel panel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
+                if (!multicolor) {
+                    return;
+                }
+                Graphics2D g2 = (Graphics2D) graphics.create();
+                Color[] colors = {
+                        new Color(0, 0, 170),
+                        new Color(170, 0, 0),
+                        new Color(0, 150, 120),
+                        new Color(190, 110, 0),
+                        new Color(85, 0, 150),
+                        new Color(190, 0, 125)
+                };
+                int stripeHeight = Math.max(28, getHeight() / colors.length);
+                for (int i = 0; i < colors.length; i++) {
+                    g2.setColor(colors[i]);
+                    g2.fillRect(0, i * stripeHeight, getWidth(), stripeHeight);
+                }
+                for (int y = 0; y < getHeight(); y += 64) {
+                    for (int x = 0; x < getWidth(); x += 96) {
+                        g2.setColor(colors[Math.abs((x / 96) + (y / 64)) % colors.length]);
+                        g2.fillRect(x, y, 54, 26);
+                    }
+                }
+                g2.dispose();
+            }
+        };
         panel.setBackground(background);
         panel.setBorder(BorderFactory.createEmptyBorder(52, 62, 52, 62));
 
-        JTextArea message = new JTextArea(face + "\n\n" + """
+        JLabel faceLabel = new JLabel(face.trim());
+        faceLabel.setForeground(Color.WHITE);
+        faceLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 132));
+        faceLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 28, 0));
+
+        JTextArea message = new JTextArea("""
                 A problem has been detected and Mactonish has been shut down to prevent damage
                 to your computer.
 
@@ -650,6 +821,7 @@ class BsodScreen {
         message.setLineWrap(true);
         message.setWrapStyleWord(true);
 
+        panel.add(faceLabel, BorderLayout.NORTH);
         panel.add(message, BorderLayout.CENTER);
         screen.setContentPane(panel);
         screen.setAlwaysOnTop(true);

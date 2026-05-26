@@ -9,8 +9,8 @@ sound, and dramatic BSOD-style error screens.
 - Taskbar window switcher for open internal apps.
 - Settings app for wallpaper color, startup sound, desktop password, and icon cleanup.
 - P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, SSH Connect,
-  Password Vault, Image Viewer, Paint, Reminders, Calculator, Clock, Sys Info,
-  and Help.
+  Password Vault, Image Viewer, Paint, Reminders, Games, App Store,
+  Calculator, Clock, Sys Info, and Help.
 - Fake BSOD triggers from menus, error paths, typed crash phrases, and the
   Emergency Panel.
 
@@ -44,4 +44,4 @@ chmod +x package-macos-pkg.sh
 ./package-macos-pkg.sh
 ```
 
-The installer is written to `dist/Mactonish-1.5.3.pkg`. It installs `Mactonish.app` into `/Applications` and requires Java 17 or newer on the target Mac.
+The installer is written to `dist/Mactonish-2.0.1.pkg`. It installs `Mactonish.app` into `/Applications` and requires Java 17 or newer on the target Mac.

@@ -24,6 +24,7 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -31,6 +32,7 @@ import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 import javax.swing.WindowConstants;
@@ -58,6 +60,7 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridLayout;
 import java.awt.KeyboardFocusManager;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
@@ -83,8 +86,12 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.prefs.Preferences;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -97,7 +104,7 @@ import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.Synthesizer;
 import javax.sound.midi.MidiChannel;
-// stack overflow
+// these are the passwords (keep safe)
 public class Main {
     private static final Preferences PREFS = Preferences.userRoot().node("mactonish");
     private static final String DEFAULT_DESKTOP_PASSWORD = "soap";
@@ -949,6 +956,8 @@ class DesktopFrame extends JFrame {
     private final JDesktopPane desktop = new JDesktopPane();
     private final JPanel taskbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 3));
     private final List<JButton> desktopIcons = new ArrayList<>();
+    private final Map<String, JButton> storeDesktopIcons = new HashMap<>();
+    private final Map<String, InstalledStoreItemFrame> storeWindows = new HashMap<>();
     private FinderFrame finder;
     private PRunFrame pRun;
     private TerminalFrame terminal;
@@ -966,6 +975,8 @@ class DesktopFrame extends JFrame {
     private PaintFrame paint;
     private RemindersFrame reminders;
     private SettingsFrame settings;
+    private GamesFrame games;
+    private AppStoreFrame appStore;
 
     DesktopFrame() {
         super("Mactonish System");
@@ -1002,8 +1013,11 @@ class DesktopFrame extends JFrame {
         addDesktopIcon("Images", 246, 34, this::openImageViewer);
         addDesktopIcon("Paint", 246, 134, this::openPaint);
         addDesktopIcon("Reminders", 246, 234, this::openReminders);
-        addDesktopIcon("Settings", 246, 334, this::openSettings);
+        addDesktopIcon("Games", 246, 334, this::openGames);
+        addDesktopIcon("App Store", 246, 434, this::openAppStore);
+        addDesktopIcon("Settings", 246, 534, this::openSettings);
         addDeskPlate();
+        refreshStoreDesktopIcons();
         openFinder();
     }
 
@@ -1016,7 +1030,7 @@ class DesktopFrame extends JFrame {
         JMenuItem about = new JMenuItem("About This Computer");
         about.addActionListener(event -> JOptionPane.showMessageDialog(
                 this,
-                "Mactonish System 1.5.3\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, Reminders, and Settings are built in.",
+                "Mactonish System 2.0.1\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, Reminders, Games, App Store, and Settings are built in.",
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));
@@ -1061,6 +1075,10 @@ class DesktopFrame extends JFrame {
         paintItem.addActionListener(event -> openPaint());
         JMenuItem remindersItem = new JMenuItem("Reminders");
         remindersItem.addActionListener(event -> openReminders());
+        JMenuItem gamesItem = new JMenuItem("Games");
+        gamesItem.addActionListener(event -> openGames());
+        JMenuItem appStoreItem = new JMenuItem("App Store");
+        appStoreItem.addActionListener(event -> openAppStore());
         JMenuItem settingsItem = new JMenuItem("Settings");
         settingsItem.addActionListener(event -> openSettings());
         apps.add(finderItem);
@@ -1079,6 +1097,8 @@ class DesktopFrame extends JFrame {
         apps.add(imagesItem);
         apps.add(paintItem);
         apps.add(remindersItem);
+        apps.add(gamesItem);
+        apps.add(appStoreItem);
         apps.add(settingsItem);
 
         JMenu view = new JMenu("Desktop");
@@ -1095,7 +1115,7 @@ class DesktopFrame extends JFrame {
         return bar;
     }
 
-    private void addDesktopIcon(String label, int x, int y, Runnable action) {
+    private JButton addDesktopIcon(String label, int x, int y, Runnable action) {
         JButton icon = new JButton("<html><center>[ ]<br>" + label + "</center></html>");
         icon.setBounds(x, y, 92, 76);
         icon.setHorizontalTextPosition(SwingConstants.CENTER);
@@ -1111,6 +1131,7 @@ class DesktopFrame extends JFrame {
         icon.addActionListener(event -> action.run());
         desktopIcons.add(icon);
         desktop.add(icon, JLayeredPane.DEFAULT_LAYER);
+        return icon;
     }
 
     void applyDesktopColor(Color color) {
@@ -1416,6 +1437,84 @@ class DesktopFrame extends JFrame {
             reminders.setIcon(false);
             reminders.moveToFront();
             reminders.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openGames() {
+        try {
+            if (games == null || games.isClosed()) {
+                games = new GamesFrame();
+                desktop.add(games, JLayeredPane.PALETTE_LAYER);
+                trackWindow(games);
+                games.setVisible(true);
+            }
+            games.setIcon(false);
+            games.moveToFront();
+            games.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openAppStore() {
+        try {
+            if (appStore == null || appStore.isClosed()) {
+                appStore = new AppStoreFrame(this);
+                desktop.add(appStore, JLayeredPane.PALETTE_LAYER);
+                trackWindow(appStore);
+                appStore.setVisible(true);
+            }
+            appStore.setIcon(false);
+            appStore.moveToFront();
+            appStore.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    void refreshStoreDesktopIcons() {
+        try {
+            List<AppStoreFrame.StoreItem> installedItems = AppStoreFrame.installedCatalogItems();
+            Set<String> installedIds = new HashSet<>();
+            for (AppStoreFrame.StoreItem item : installedItems) {
+                installedIds.add(item.id());
+                if (!storeDesktopIcons.containsKey(item.id())) {
+                    JButton icon = addDesktopIcon(item.shortName(), 34, 34, () -> openStoreItem(item));
+                    storeDesktopIcons.put(item.id(), icon);
+                }
+            }
+
+            for (String id : new ArrayList<>(storeDesktopIcons.keySet())) {
+                if (!installedIds.contains(id)) {
+                    JButton icon = storeDesktopIcons.remove(id);
+                    desktopIcons.remove(icon);
+                    desktop.remove(icon);
+                    InstalledStoreItemFrame window = storeWindows.remove(id);
+                    if (window != null && window.isDisplayable()) {
+                        window.dispose();
+                    }
+                }
+            }
+            arrangeIcons();
+            desktop.revalidate();
+            desktop.repaint();
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Could not load installed desktop apps:\n" + exception.getMessage(), "Desktop");
+        }
+    }
+
+    void openStoreItem(AppStoreFrame.StoreItem item) {
+        try {
+            InstalledStoreItemFrame window = storeWindows.get(item.id());
+            if (window == null || window.isClosed()) {
+                window = new InstalledStoreItemFrame(item);
+                storeWindows.put(item.id(), window);
+                desktop.add(window, JLayeredPane.PALETTE_LAYER);
+                trackWindow(window);
+                window.setVisible(true);
+            }
+            window.setIcon(false);
+            window.moveToFront();
+            window.setSelected(true);
         } catch (Exception ignored) {
         }
     }
@@ -5222,6 +5321,997 @@ class RemindersFrame extends JInternalFrame {
     }
 }
 
+class AppStoreFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+    private static final File STORE = new File(new File(System.getProperty("user.home"), ".mactonish"), "app-store.tsv");
+    private static final File INSTALL_ROOT = new File(new File(System.getProperty("user.home"), ".mactonish"), "Store");
+    private static final List<StoreItem> CATALOG = List.of(
+            new StoreItem("disk-doctor", "App", "Disk Doctor", "1.0", "Scans fake disks, reports bad sectors, and writes dramatic repair logs."),
+            new StoreItem("screen-saver-pack", "Extension", "Screen Saver Pack", "1.2", "Adds starfield, bouncing logo, and sleepy monitor saver presets."),
+            new StoreItem("network-neighborhood", "App", "Network Neighborhood", "0.9", "Browses pretend LAN machines, printers, and suspicious shared folders."),
+            new StoreItem("theme-classic", "Extension", "Classic Theme Kit", "2.1", "Installs extra wallpaper colors and crisp black-and-white control styling."),
+            new StoreItem("bug-reporter", "App", "Bug Reporter", "1.1", "Files fake crash tickets and generates official-looking incident numbers."),
+            new StoreItem("codec-pack", "Extension", "Mystery Codec Pack", "3.5", "Claims to improve media playback while adding vintage codec warning dialogs."),
+            new StoreItem("mailbox", "App", "Mactonish Mail", "0.8", "Reads local fake system mail from admin, support, and questionable newsletters."),
+            new StoreItem("finder-plus", "Extension", "Finder Plus", "1.4", "Adds imagined finder upgrades like labels, quick notes, and louder trash warnings.")
+    );
+
+    private final StoreTableModel model = new StoreTableModel();
+    private final JTable table = new JTable(model);
+    private final JTextArea details = new JTextArea();
+    private final JLabel status = new JLabel(" ready ");
+    private final DesktopFrame desktopFrame;
+
+    AppStoreFrame() {
+        this(null);
+    }
+
+    AppStoreFrame(DesktopFrame desktopFrame) {
+        super("App Store", true, true, true, true);
+        this.desktopFrame = desktopFrame;
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(760, 500);
+        setMinimumSize(new Dimension(560, 360));
+        setLocation(470, 230);
+
+        table.setRowHeight(24);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        table.getSelectionModel().addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting()) {
+                showSelectedDetails();
+            }
+        });
+        details.setEditable(false);
+        details.setLineWrap(true);
+        details.setWrapStyleWord(true);
+        details.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+        load();
+        if (table.getRowCount() > 0) {
+            table.setRowSelectionInterval(0, 0);
+        }
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" MACTONISH APP STORE ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("Install", this::installSelected));
+        buttons.add(retroButton("Remove", this::removeSelected));
+        buttons.add(retroButton("Launch", this::launchSelected));
+        buttons.add(retroButton("Show Manifest", this::showManifest));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(buttons, BorderLayout.SOUTH);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(table), new JScrollPane(details));
+        split.setResizeWeight(0.58);
+        split.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(split, BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu store = new JMenu("Store");
+        JMenuItem install = new JMenuItem("Install Selected");
+        install.addActionListener(event -> installSelected());
+        JMenuItem remove = new JMenuItem("Remove Selected");
+        remove.addActionListener(event -> removeSelected());
+        JMenuItem refresh = new JMenuItem("Refresh");
+        refresh.addActionListener(event -> load());
+        store.add(install);
+        store.add(remove);
+        store.add(refresh);
+        bar.add(store);
+        return bar;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private void load() {
+        try {
+            model.setInstalled(readInstalled());
+            status.setText(" loaded catalog: " + CATALOG.size() + " items, " + model.installedCount() + " installed ");
+            showSelectedDetails();
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Store load failed:\n" + exception.getMessage(), "App Store");
+        }
+    }
+
+    private void installSelected() {
+        StoreItem item = selectedItem();
+        if (item == null) {
+            DesktopSounds.playError();
+            return;
+        }
+        if (model.isInstalled(item.id())) {
+            status.setText(" already installed: " + item.name() + " ");
+            return;
+        }
+        try {
+            Files.createDirectories(INSTALL_ROOT.toPath());
+            Files.writeString(manifestFile(item).toPath(), manifestFor(item), StandardCharsets.UTF_8);
+            Set<String> installed = readInstalled();
+            installed.add(item.id());
+            writeInstalled(installed);
+            model.setInstalled(installed);
+            status.setText(" installed " + item.name() + " ");
+            showSelectedDetails();
+            refreshDesktop();
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Install failed:\n" + exception.getMessage(), "App Store");
+        }
+    }
+
+    private void removeSelected() {
+        StoreItem item = selectedItem();
+        if (item == null || !model.isInstalled(item.id())) {
+            DesktopSounds.playError();
+            return;
+        }
+        try {
+            Set<String> installed = readInstalled();
+            installed.remove(item.id());
+            writeInstalled(installed);
+            Files.deleteIfExists(manifestFile(item).toPath());
+            model.setInstalled(installed);
+            status.setText(" removed " + item.name() + " ");
+            showSelectedDetails();
+            refreshDesktop();
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Remove failed:\n" + exception.getMessage(), "App Store");
+        }
+    }
+
+    private void launchSelected() {
+        StoreItem item = selectedItem();
+        if (item == null || !model.isInstalled(item.id())) {
+            DesktopSounds.playError();
+            status.setText(" install the item before launching ");
+            return;
+        }
+        if (desktopFrame != null) {
+            desktopFrame.openStoreItem(item);
+            status.setText(" launched " + item.name() + " ");
+        } else {
+            JOptionPane.showMessageDialog(this, item.name() + " is installed.", "App Store", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void showManifest() {
+        StoreItem item = selectedItem();
+        if (item == null || !model.isInstalled(item.id())) {
+            DesktopSounds.playError();
+            return;
+        }
+        try {
+            details.setText(Files.readString(manifestFile(item).toPath(), StandardCharsets.UTF_8));
+            status.setText(" manifest: " + manifestFile(item).getAbsolutePath() + " ");
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Manifest failed:\n" + exception.getMessage(), "App Store");
+        }
+    }
+
+    private void showSelectedDetails() {
+        StoreItem item = selectedItem();
+        if (item == null) {
+            details.setText("");
+            return;
+        }
+        String installed = model.isInstalled(item.id()) ? "Installed" : "Not installed";
+        details.setText("""
+                %s
+
+                Type: %s
+                Version: %s
+                Status: %s
+
+                %s
+
+                Installed files:
+                %s
+                """.formatted(
+                item.name(),
+                item.type(),
+                item.version(),
+                installed,
+                item.description(),
+                manifestFile(item).getAbsolutePath()
+        ));
+    }
+
+    private StoreItem selectedItem() {
+        int row = table.getSelectedRow();
+        if (row < 0) {
+            return null;
+        }
+        return model.itemAt(table.convertRowIndexToModel(row));
+    }
+
+    static List<StoreItem> installedCatalogItems() throws IOException {
+        Set<String> installed = readInstalled();
+        List<StoreItem> items = new ArrayList<>();
+        for (StoreItem item : CATALOG) {
+            if (installed.contains(item.id())) {
+                items.add(item);
+            }
+        }
+        return items;
+    }
+
+    private void refreshDesktop() {
+        if (desktopFrame != null) {
+            desktopFrame.refreshStoreDesktopIcons();
+        }
+    }
+
+    private static Set<String> readInstalled() throws IOException {
+        Set<String> installed = new HashSet<>();
+        if (!STORE.exists()) {
+            return installed;
+        }
+        for (String line : Files.readString(STORE.toPath(), StandardCharsets.UTF_8).split("\\R")) {
+            if (!line.isBlank()) {
+                installed.add(line.trim());
+            }
+        }
+        return installed;
+    }
+
+    private void writeInstalled(Set<String> installed) throws IOException {
+        Files.createDirectories(STORE.getParentFile().toPath());
+        StringBuilder out = new StringBuilder();
+        for (StoreItem item : CATALOG) {
+            if (installed.contains(item.id())) {
+                out.append(item.id()).append('\n');
+            }
+        }
+        Files.writeString(STORE.toPath(), out.toString(), StandardCharsets.UTF_8);
+    }
+
+    static File manifestFile(StoreItem item) {
+        return new File(INSTALL_ROOT, item.id() + ".txt");
+    }
+
+    private String manifestFor(StoreItem item) {
+        return """
+                Mactonish Store Manifest
+
+                id=%s
+                name=%s
+                type=%s
+                version=%s
+
+                %s
+                """.formatted(item.id(), item.name(), item.type(), item.version(), item.description());
+    }
+
+    record StoreItem(String id, String type, String name, String version, String description) {
+        String shortName() {
+            if (name.length() <= 12) {
+                return name;
+            }
+            String[] words = name.split("\\s+");
+            return words.length > 1 ? words[0] : name.substring(0, 12);
+        }
+    }
+
+    static class StoreTableModel extends AbstractTableModel {
+        private static final String[] COLUMNS = {"Type", "Name", "Version", "Status"};
+        private Set<String> installed = new HashSet<>();
+
+        public int getRowCount() {
+            return CATALOG.size();
+        }
+
+        public int getColumnCount() {
+            return COLUMNS.length;
+        }
+
+        public String getColumnName(int column) {
+            return COLUMNS[column];
+        }
+
+        public Object getValueAt(int row, int column) {
+            StoreItem item = CATALOG.get(row);
+            return switch (column) {
+                case 0 -> item.type();
+                case 1 -> item.name();
+                case 2 -> item.version();
+                case 3 -> installed.contains(item.id()) ? "Installed" : "Available";
+                default -> "";
+            };
+        }
+
+        StoreItem itemAt(int row) {
+            return CATALOG.get(row);
+        }
+
+        boolean isInstalled(String id) {
+            return installed.contains(id);
+        }
+
+        int installedCount() {
+            return installed.size();
+        }
+
+        void setInstalled(Set<String> installed) {
+            this.installed = new HashSet<>(installed);
+            fireTableDataChanged();
+        }
+    }
+}
+
+class InstalledStoreItemFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+    private final SecureRandom random = new SecureRandom();
+
+    InstalledStoreItemFrame(AppStoreFrame.StoreItem item) {
+        super(item.name(), true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(560, 380);
+        setMinimumSize(new Dimension(420, 280));
+        setLocation(520, 300);
+
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+        JLabel title = new JLabel(" " + item.name() + " ", JLabel.CENTER);
+        title.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        root.add(title, BorderLayout.NORTH);
+        root.add(buildApp(item), BorderLayout.CENTER);
+        setContentPane(root);
+    }
+
+    private JComponent buildApp(AppStoreFrame.StoreItem item) {
+        return switch (item.id()) {
+            case "disk-doctor" -> diskDoctor();
+            case "screen-saver-pack" -> screenSaverPack();
+            case "network-neighborhood" -> networkNeighborhood();
+            case "theme-classic" -> classicThemeKit();
+            case "bug-reporter" -> bugReporter();
+            case "codec-pack" -> codecPack();
+            case "mailbox" -> mailbox();
+            case "finder-plus" -> finderPlus();
+            default -> installedInfo(item);
+        };
+    }
+
+    private JPanel basePanel() {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.setBackground(PAPER);
+        panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        return panel;
+    }
+
+    private JButton button(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+
+    private JTextArea textArea(String text) {
+        JTextArea area = new JTextArea(text);
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        area.setBackground(Color.WHITE);
+        area.setForeground(INK);
+        return area;
+    }
+
+    private JPanel diskDoctor() {
+        JPanel panel = basePanel();
+        JTextArea log = textArea("Disk Doctor ready.\nChoose Scan Disk to inspect Macintosh HD.\n");
+        JLabel status = new JLabel(" idle ");
+        status.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setOpaque(false);
+        buttons.add(button("Scan Disk", () -> {
+            log.append("\nScanning Macintosh HD...\n");
+            int warnings = random.nextInt(4);
+            for (int i = 0; i < 6; i++) {
+                log.append("Sector " + (1200 + random.nextInt(8800)) + ": " + (i < warnings ? "WARN" : "OK") + "\n");
+            }
+            status.setText(warnings == 0 ? " no problems found " : " found " + warnings + " repairable warnings ");
+        }));
+        buttons.add(button("Repair", () -> {
+            log.append("Rebuilding desktop database... done\nBlessing pretend filesystem... done\n");
+            status.setText(" repaired ");
+        }));
+        buttons.add(button("Clear", () -> {
+            log.setText("Disk Doctor ready.\n");
+            status.setText(" idle ");
+        }));
+        panel.add(buttons, BorderLayout.NORTH);
+        panel.add(new JScrollPane(log), BorderLayout.CENTER);
+        panel.add(status, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel screenSaverPack() {
+        JPanel panel = basePanel();
+        JComboBox<String> saver = new JComboBox<>(new String[]{"Starfield", "Bouncing Logo", "Sleepy Monitor"});
+        JCheckBox password = new JCheckBox("Require password on wake");
+        password.setBackground(PAPER);
+        JLabel preview = new JLabel("        *       .      *       ", JLabel.CENTER);
+        preview.setOpaque(true);
+        preview.setBackground(Color.BLACK);
+        preview.setForeground(Color.WHITE);
+        preview.setFont(new Font(Font.MONOSPACED, Font.BOLD, 20));
+        JLabel status = new JLabel(" Starfield selected ");
+        status.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        javax.swing.Timer timer = new javax.swing.Timer(300, event -> preview.setText(randomStars()));
+        timer.start();
+        addInternalFrameListener(new InternalFrameAdapter() {
+            public void internalFrameClosed(InternalFrameEvent event) {
+                timer.stop();
+            }
+        });
+        saver.addActionListener(event -> {
+            String selected = String.valueOf(saver.getSelectedItem());
+            status.setText(" " + selected + " selected ");
+            preview.setText("Bouncing Logo".equals(selected) ? "        MACTONISH        " : randomStars());
+        });
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        top.setOpaque(false);
+        top.add(new JLabel("Saver:"));
+        top.add(saver);
+        top.add(password);
+        panel.add(top, BorderLayout.NORTH);
+        panel.add(preview, BorderLayout.CENTER);
+        panel.add(status, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private String randomStars() {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < 36; i++) {
+            out.append(random.nextInt(7) == 0 ? "*" : random.nextInt(11) == 0 ? "." : " ");
+        }
+        return out.toString();
+    }
+
+    private JPanel networkNeighborhood() {
+        JPanel panel = basePanel();
+        String[] columns = {"Computer", "Share", "Status"};
+        Object[][] data = {
+                {"FRONT-DESK", "Invoices", "Online"},
+                {"GARAGE-PC", "Music", "Sleeping"},
+                {"PRINTROOM", "LaserWriter", "Online"},
+                {"KITCHEN-IMAC", "Recipes", "Online"},
+                {"BASEMENT", "Mystery", "Access denied"}
+        };
+        JTable table = new JTable(data, columns);
+        table.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        table.setRowHeight(24);
+        JLabel status = new JLabel(" select a network share ");
+        status.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setOpaque(false);
+        buttons.add(button("Connect", () -> {
+            int row = table.getSelectedRow();
+            if (row < 0) {
+                DesktopSounds.playError();
+                return;
+            }
+            status.setText(" connected to \\\\" + table.getValueAt(row, 0) + "\\" + table.getValueAt(row, 1) + " ");
+        }));
+        buttons.add(button("Refresh", () -> status.setText(" found " + data.length + " neighborhood services ")));
+        panel.add(buttons, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        panel.add(status, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel classicThemeKit() {
+        JPanel panel = basePanel();
+        JLabel sample = new JLabel(" Classic controls preview ", JLabel.CENTER);
+        sample.setOpaque(true);
+        sample.setFont(new Font(Font.MONOSPACED, Font.BOLD, 18));
+        JLabel status = new JLabel(" choose a theme ");
+        status.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setOpaque(false);
+        buttons.add(button("Platinum", () -> applyPreviewTheme(sample, status, new Color(238, 238, 226), Color.BLACK, "Platinum")));
+        buttons.add(button("Graphite", () -> applyPreviewTheme(sample, status, new Color(210, 214, 218), Color.DARK_GRAY, "Graphite")));
+        buttons.add(button("High Contrast", () -> applyPreviewTheme(sample, status, Color.BLACK, Color.WHITE, "High Contrast")));
+        panel.add(buttons, BorderLayout.NORTH);
+        panel.add(sample, BorderLayout.CENTER);
+        panel.add(status, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private void applyPreviewTheme(JLabel sample, JLabel status, Color background, Color foreground, String name) {
+        sample.setBackground(background);
+        sample.setForeground(foreground);
+        status.setText(" applied " + name + " preview ");
+    }
+
+    private JPanel bugReporter() {
+        JPanel panel = basePanel();
+        JTextField title = new JTextField();
+        JTextArea steps = new JTextArea();
+        steps.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        JLabel ticket = new JLabel(" no ticket filed ");
+        ticket.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        JPanel form = new JPanel(new BorderLayout(6, 6));
+        form.setOpaque(false);
+        form.add(new JLabel("Title:"), BorderLayout.NORTH);
+        form.add(title, BorderLayout.CENTER);
+        JPanel bottom = new JPanel(new BorderLayout(6, 6));
+        bottom.setOpaque(false);
+        bottom.add(new JLabel("Steps:"), BorderLayout.NORTH);
+        bottom.add(new JScrollPane(steps), BorderLayout.CENTER);
+        bottom.add(button("File Ticket", () -> {
+            if (title.getText().isBlank()) {
+                DesktopSounds.playError();
+                ticket.setText(" title required ");
+                return;
+            }
+            ticket.setText(" filed BUG-" + (1000 + random.nextInt(9000)) + " ");
+        }), BorderLayout.SOUTH);
+        panel.add(form, BorderLayout.NORTH);
+        panel.add(bottom, BorderLayout.CENTER);
+        panel.add(ticket, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel codecPack() {
+        JPanel panel = basePanel();
+        JPanel codecs = new JPanel(new GridLayout(0, 1, 4, 4));
+        codecs.setOpaque(false);
+        for (String codec : List.of("CinePak Plus", "Sorenson-ish Video", "Mystery Audio", "Tiny MIDI Enhancer", "AVI Compatibility")) {
+            JCheckBox box = new JCheckBox(codec, true);
+            box.setBackground(PAPER);
+            codecs.add(box);
+        }
+        JTextArea result = textArea("Codec test output will appear here.\n");
+        panel.add(codecs, BorderLayout.NORTH);
+        panel.add(new JScrollPane(result), BorderLayout.CENTER);
+        panel.add(button("Test Playback", () -> result.append("Loaded clip_" + random.nextInt(10) + ".mov: playback OK, audio " + (random.nextBoolean() ? "synced" : "mostly synced") + "\n")), BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPanel mailbox() {
+        JPanel panel = basePanel();
+        String[] columns = {"From", "Subject"};
+        Object[][] messages = {
+                {"admin", "Welcome to Mactonish Mail"},
+                {"support", "Your App Store receipt"},
+                {"newsletter", "Seven desktop tips"},
+                {"postmaster", "Local delivery report"}
+        };
+        String[] bodies = {
+                "Your local mailbox is ready. No network required.",
+                "Thanks for installing apps from the Mactonish App Store.",
+                "Tip 1: Clean Up Icons after installing many apps.",
+                "All messages delivered to ~/.mactonish/mailbox."
+        };
+        JTable table = new JTable(messages, columns);
+        table.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        table.setRowHeight(24);
+        JTextArea body = textArea("Select a message.");
+        table.getSelectionModel().addListSelectionListener(event -> {
+            int row = table.getSelectedRow();
+            if (!event.getValueIsAdjusting() && row >= 0) {
+                body.setText(bodies[row]);
+            }
+        });
+        panel.add(new JScrollPane(table), BorderLayout.NORTH);
+        panel.add(new JScrollPane(body), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel finderPlus() {
+        JPanel panel = basePanel();
+        JTextField note = new JTextField();
+        JTextArea notes = textArea("Finder Plus notes:\n");
+        JComboBox<String> label = new JComboBox<>(new String[]{"None", "Red", "Orange", "Blue", "Work", "Archive"});
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        controls.setOpaque(false);
+        controls.add(new JLabel("Label:"));
+        controls.add(label);
+        controls.add(note);
+        controls.add(button("Add Note", () -> {
+            String text = note.getText().isBlank() ? "Untitled finder note" : note.getText();
+            notes.append("[" + label.getSelectedItem() + "] " + text + "\n");
+            note.setText("");
+        }));
+        panel.add(controls, BorderLayout.NORTH);
+        panel.add(new JScrollPane(notes), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel installedInfo(AppStoreFrame.StoreItem item) {
+        JPanel panel = basePanel();
+        panel.add(new JScrollPane(textArea(item.name() + "\n\nVersion: " + item.version() + "\n\nInstalled at:\n" + AppStoreFrame.manifestFile(item).getAbsolutePath())), BorderLayout.CENTER);
+        return panel;
+    }
+}
+
+class GamesFrame extends JInternalFrame {
+    GamesFrame() {
+        super("Games", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(660, 520);
+        setLocation(500, 250);
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Minesweeper", new MinesweeperPanel());
+        tabs.addTab("Pong", new PongPanel());
+        setContentPane(tabs);
+    }
+
+    static class MinesweeperPanel extends JPanel {
+        private static final int SIZE = 9;
+        private static final int MINES = 10;
+        private static final Color PAPER = new Color(238, 238, 226);
+        private static final Color INK = Color.BLACK;
+
+        private final JButton[][] buttons = new JButton[SIZE][SIZE];
+        private final boolean[][] mines = new boolean[SIZE][SIZE];
+        private final boolean[][] revealed = new boolean[SIZE][SIZE];
+        private final boolean[][] flagged = new boolean[SIZE][SIZE];
+        private final JLabel status = new JLabel(" Clear the field. Right-click flags. ");
+        private boolean armed;
+        private boolean gameOver;
+        private int revealedCount;
+
+        MinesweeperPanel() {
+            super(new BorderLayout(8, 8));
+            setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+            setBackground(PAPER);
+
+            JPanel top = new JPanel(new BorderLayout(8, 8));
+            top.setOpaque(false);
+            JButton newGame = new JButton("New Game");
+            newGame.addActionListener(event -> newGame());
+            status.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+            top.add(status, BorderLayout.CENTER);
+            top.add(newGame, BorderLayout.EAST);
+
+            JPanel grid = new JPanel(new GridLayout(SIZE, SIZE, 2, 2));
+            grid.setBackground(INK);
+            for (int row = 0; row < SIZE; row++) {
+                for (int col = 0; col < SIZE; col++) {
+                    JButton cell = new JButton("");
+                    cell.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
+                    cell.setFocusPainted(false);
+                    cell.setBackground(PAPER);
+                    cell.setForeground(INK);
+                    cell.setBorder(BorderFactory.createLineBorder(INK, 1));
+                    int cellRow = row;
+                    int cellCol = col;
+                    cell.addActionListener(event -> reveal(cellRow, cellCol));
+                    cell.addMouseListener(new MouseAdapter() {
+                        public void mousePressed(MouseEvent event) {
+                            if (SwingUtilities.isRightMouseButton(event)) {
+                                toggleFlag(cellRow, cellCol);
+                            }
+                        }
+                    });
+                    buttons[row][col] = cell;
+                    grid.add(cell);
+                }
+            }
+
+            add(top, BorderLayout.NORTH);
+            add(grid, BorderLayout.CENTER);
+            newGame();
+        }
+
+        private void newGame() {
+            for (int row = 0; row < SIZE; row++) {
+                for (int col = 0; col < SIZE; col++) {
+                    mines[row][col] = false;
+                    revealed[row][col] = false;
+                    flagged[row][col] = false;
+                    JButton cell = buttons[row][col];
+                    cell.setText("");
+                    cell.setEnabled(true);
+                    cell.setBackground(PAPER);
+                    cell.setForeground(INK);
+                }
+            }
+            armed = false;
+            gameOver = false;
+            revealedCount = 0;
+            status.setText(" Clear the field. Right-click flags. ");
+        }
+
+        private void armBoard(int safeRow, int safeCol) {
+            SecureRandom random = new SecureRandom();
+            int placed = 0;
+            while (placed < MINES) {
+                int row = random.nextInt(SIZE);
+                int col = random.nextInt(SIZE);
+                boolean nearFirstClick = Math.abs(row - safeRow) <= 1 && Math.abs(col - safeCol) <= 1;
+                if (!mines[row][col] && !nearFirstClick) {
+                    mines[row][col] = true;
+                    placed++;
+                }
+            }
+            armed = true;
+        }
+
+        private void toggleFlag(int row, int col) {
+            if (gameOver || revealed[row][col]) {
+                return;
+            }
+            flagged[row][col] = !flagged[row][col];
+            buttons[row][col].setText(flagged[row][col] ? "F" : "");
+        }
+
+        private void reveal(int row, int col) {
+            if (gameOver || flagged[row][col] || revealed[row][col]) {
+                return;
+            }
+            if (!armed) {
+                armBoard(row, col);
+            }
+            if (mines[row][col]) {
+                lose();
+                return;
+            }
+            revealSafe(row, col);
+            if (revealedCount == SIZE * SIZE - MINES) {
+                gameOver = true;
+                status.setText(" Field cleared. Mactonish approves. ");
+                disableBoard();
+            }
+        }
+
+        private void revealSafe(int row, int col) {
+            if (row < 0 || row >= SIZE || col < 0 || col >= SIZE || revealed[row][col] || flagged[row][col]) {
+                return;
+            }
+            revealed[row][col] = true;
+            revealedCount++;
+            int count = nearbyMines(row, col);
+            JButton cell = buttons[row][col];
+            cell.setEnabled(false);
+            cell.setBackground(Color.WHITE);
+            cell.setText(count == 0 ? "" : String.valueOf(count));
+            if (count == 0) {
+                for (int r = row - 1; r <= row + 1; r++) {
+                    for (int c = col - 1; c <= col + 1; c++) {
+                        if (r != row || c != col) {
+                            revealSafe(r, c);
+                        }
+                    }
+                }
+            }
+        }
+
+        private int nearbyMines(int row, int col) {
+            int count = 0;
+            for (int r = row - 1; r <= row + 1; r++) {
+                for (int c = col - 1; c <= col + 1; c++) {
+                    if (r >= 0 && r < SIZE && c >= 0 && c < SIZE && mines[r][c]) {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        private void lose() {
+            gameOver = true;
+            status.setText(" Mine clicked. System dignity damaged. ");
+            for (int row = 0; row < SIZE; row++) {
+                for (int col = 0; col < SIZE; col++) {
+                    if (mines[row][col]) {
+                        buttons[row][col].setText("*");
+                        buttons[row][col].setBackground(new Color(255, 210, 210));
+                    }
+                }
+            }
+            disableBoard();
+        }
+
+        private void disableBoard() {
+            for (JButton[] row : buttons) {
+                for (JButton cell : row) {
+                    cell.setEnabled(false);
+                }
+            }
+        }
+    }
+
+    static class PongPanel extends JPanel {
+        private static final Color PAPER = new Color(238, 238, 226);
+        private static final Color INK = Color.BLACK;
+
+        private final JLabel score = new JLabel(" Player 0   Mactonish 0 ");
+        private final PongCourt court = new PongCourt(score);
+
+        PongPanel() {
+            super(new BorderLayout(8, 8));
+            setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+            setBackground(PAPER);
+
+            JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            top.setOpaque(false);
+            JButton start = new JButton("Start");
+            JButton reset = new JButton("New Match");
+            start.addActionListener(event -> court.start());
+            reset.addActionListener(event -> court.resetMatch());
+            score.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+            top.add(start);
+            top.add(reset);
+            top.add(score);
+
+            JLabel hint = new JLabel(" Use Up/Down or W/S. First to 5 wins. ");
+            hint.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+            add(top, BorderLayout.NORTH);
+            add(court, BorderLayout.CENTER);
+            add(hint, BorderLayout.SOUTH);
+        }
+
+        static class PongCourt extends JPanel {
+            private final JLabel scoreLabel;
+            private final javax.swing.Timer timer;
+            private int playerY = 145;
+            private int cpuY = 145;
+            private int ballX = 310;
+            private int ballY = 180;
+            private int ballDx = 4;
+            private int ballDy = 3;
+            private int playerScore;
+            private int cpuScore;
+
+            PongCourt(JLabel scoreLabel) {
+                this.scoreLabel = scoreLabel;
+                setPreferredSize(new Dimension(560, 330));
+                setMinimumSize(new Dimension(360, 240));
+                setBackground(Color.WHITE);
+                setBorder(BorderFactory.createLineBorder(INK, 2));
+                setFocusable(true);
+                bindKey("up", KeyEvent.VK_UP, -1);
+                bindKey("w", KeyEvent.VK_W, -1);
+                bindKey("down", KeyEvent.VK_DOWN, 1);
+                bindKey("s", KeyEvent.VK_S, 1);
+                timer = new javax.swing.Timer(16, event -> tick());
+            }
+
+            private void bindKey(String name, int keyCode, int direction) {
+                InputMap input = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+                ActionMap actions = getActionMap();
+                input.put(KeyStroke.getKeyStroke(keyCode, 0), name);
+                actions.put(name, new AbstractAction() {
+                    public void actionPerformed(ActionEvent event) {
+                        playerY = clamp(playerY + direction * 18, 0, getHeight() - 58);
+                        repaint();
+                    }
+                });
+            }
+
+            void start() {
+                requestFocusInWindow();
+                timer.start();
+            }
+
+            void resetMatch() {
+                playerScore = 0;
+                cpuScore = 0;
+                resetBall(1);
+                updateScore();
+                timer.stop();
+                repaint();
+            }
+
+            private void tick() {
+                int height = Math.max(getHeight(), 240);
+                int width = Math.max(getWidth(), 360);
+                ballX += ballDx;
+                ballY += ballDy;
+                cpuY += Integer.compare(ballY - 22, cpuY + 29) * 4;
+                cpuY = clamp(cpuY, 0, height - 58);
+
+                if (ballY <= 0 || ballY >= height - 14) {
+                    ballDy *= -1;
+                }
+                if (ballX <= 34 && ballX >= 24 && ballY + 14 >= playerY && ballY <= playerY + 58) {
+                    ballDx = Math.abs(ballDx) + 1;
+                }
+                if (ballX + 14 >= width - 34 && ballX + 14 <= width - 24 && ballY + 14 >= cpuY && ballY <= cpuY + 58) {
+                    ballDx = -Math.abs(ballDx) - 1;
+                }
+                if (ballX < -20) {
+                    cpuScore++;
+                    resetBall(-1);
+                } else if (ballX > width + 20) {
+                    playerScore++;
+                    resetBall(1);
+                }
+                updateScore();
+                if (playerScore >= 5 || cpuScore >= 5) {
+                    timer.stop();
+                    scoreLabel.setText(playerScore > cpuScore ? " Player wins. New Match? " : " Mactonish wins. New Match? ");
+                }
+                repaint();
+            }
+
+            private void resetBall(int direction) {
+                ballX = Math.max(getWidth(), 360) / 2;
+                ballY = Math.max(getHeight(), 240) / 2;
+                ballDx = direction * 4;
+                ballDy = new SecureRandom().nextBoolean() ? 3 : -3;
+            }
+
+            private void updateScore() {
+                scoreLabel.setText(" Player " + playerScore + "   Mactonish " + cpuScore + " ");
+            }
+
+            private int clamp(int value, int min, int max) {
+                return Math.max(min, Math.min(max, value));
+            }
+
+            protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
+                Graphics2D g = (Graphics2D) graphics;
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+                int width = getWidth();
+                int height = getHeight();
+                g.setColor(INK);
+                for (int y = 8; y < height; y += 24) {
+                    g.fillRect(width / 2 - 2, y, 4, 12);
+                }
+                g.fillRect(24, playerY, 10, 58);
+                g.fillRect(width - 34, cpuY, 10, 58);
+                g.fillRect(ballX, ballY, 14, 14);
+            }
+        }
+    }
+}
+
 class HelpFrame extends JInternalFrame {
     HelpFrame() {
         super("Help", true, true, true, true);
@@ -5246,6 +6336,8 @@ class HelpFrame extends JInternalFrame {
                 Images      Open, zoom, fit, and rotate image files.
                 Paint       Draw simple PNG images with colors and brush sizes.
                 Reminders   Track tasks with due text and done checkboxes.
+                Games       Play Minesweeper and Pong.
+                App Store   Browse installable local apps and extensions.
                 Settings    Change wallpaper, startup sound, password, and icons.
                 Calculator  Basic arithmetic with parentheses.
                 Clock       Local date and time.

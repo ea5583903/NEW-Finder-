@@ -81,6 +81,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -977,6 +980,9 @@ class DesktopFrame extends JFrame {
     private SettingsFrame settings;
     private GamesFrame games;
     private AppStoreFrame appStore;
+    private CalendarFrame calendar;
+    private StopwatchFrame stopwatch;
+    private ConverterFrame converter;
 
     DesktopFrame() {
         super("Mactonish System");
@@ -1016,6 +1022,9 @@ class DesktopFrame extends JFrame {
         addDesktopIcon("Games", 246, 334, this::openGames);
         addDesktopIcon("App Store", 246, 434, this::openAppStore);
         addDesktopIcon("Settings", 246, 534, this::openSettings);
+        addDesktopIcon("Calendar", 352, 34, this::openCalendar);
+        addDesktopIcon("Stopwatch", 352, 134, this::openStopwatch);
+        addDesktopIcon("Converter", 352, 234, this::openConverter);
         addDeskPlate();
         refreshStoreDesktopIcons();
         openFinder();
@@ -1030,7 +1039,7 @@ class DesktopFrame extends JFrame {
         JMenuItem about = new JMenuItem("About This Computer");
         about.addActionListener(event -> JOptionPane.showMessageDialog(
                 this,
-                "Mactonish System 2.0.1\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, Reminders, Games, App Store, and Settings are built in.",
+                "Mactonish System 2.0.1\nFinder, P-Run, Terminal, Notepad, App Maker, File Edit, Music Edit, Calculator, Clock, Sys Info, Help, SSH Connect, Vault, Images, Paint, Reminders, Games, App Store, Settings, Calendar, Stopwatch, and Converter are built in.",
                 "About This Computer",
                 JOptionPane.INFORMATION_MESSAGE
         ));
@@ -1081,6 +1090,12 @@ class DesktopFrame extends JFrame {
         appStoreItem.addActionListener(event -> openAppStore());
         JMenuItem settingsItem = new JMenuItem("Settings");
         settingsItem.addActionListener(event -> openSettings());
+        JMenuItem calendarItem = new JMenuItem("Calendar");
+        calendarItem.addActionListener(event -> openCalendar());
+        JMenuItem stopwatchItem = new JMenuItem("Stopwatch");
+        stopwatchItem.addActionListener(event -> openStopwatch());
+        JMenuItem converterItem = new JMenuItem("Converter");
+        converterItem.addActionListener(event -> openConverter());
         apps.add(finderItem);
         apps.add(pRunItem);
         apps.add(terminalItem);
@@ -1100,6 +1115,9 @@ class DesktopFrame extends JFrame {
         apps.add(gamesItem);
         apps.add(appStoreItem);
         apps.add(settingsItem);
+        apps.add(calendarItem);
+        apps.add(stopwatchItem);
+        apps.add(converterItem);
 
         JMenu view = new JMenu("Desktop");
         JMenuItem arrange = new JMenuItem("Clean Up Icons");
@@ -1530,6 +1548,51 @@ class DesktopFrame extends JFrame {
             settings.setIcon(false);
             settings.moveToFront();
             settings.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openCalendar() {
+        try {
+            if (calendar == null || calendar.isClosed()) {
+                calendar = new CalendarFrame();
+                desktop.add(calendar, JLayeredPane.PALETTE_LAYER);
+                trackWindow(calendar);
+                calendar.setVisible(true);
+            }
+            calendar.setIcon(false);
+            calendar.moveToFront();
+            calendar.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openStopwatch() {
+        try {
+            if (stopwatch == null || stopwatch.isClosed()) {
+                stopwatch = new StopwatchFrame();
+                desktop.add(stopwatch, JLayeredPane.PALETTE_LAYER);
+                trackWindow(stopwatch);
+                stopwatch.setVisible(true);
+            }
+            stopwatch.setIcon(false);
+            stopwatch.moveToFront();
+            stopwatch.setSelected(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openConverter() {
+        try {
+            if (converter == null || converter.isClosed()) {
+                converter = new ConverterFrame();
+                desktop.add(converter, JLayeredPane.PALETTE_LAYER);
+                trackWindow(converter);
+                converter.setVisible(true);
+            }
+            converter.setIcon(false);
+            converter.moveToFront();
+            converter.setSelected(true);
         } catch (Exception ignored) {
         }
     }
@@ -6312,6 +6375,550 @@ class GamesFrame extends JInternalFrame {
     }
 }
 
+class CalendarFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+    private static final DateTimeFormatter NOTE_KEY = DateTimeFormatter.ISO_LOCAL_DATE;
+
+    private final JLabel monthLabel = new JLabel("", JLabel.CENTER);
+    private final JPanel days = new JPanel(new GridLayout(0, 7, 4, 4));
+    private final JTextArea note = new JTextArea();
+    private final JLabel status = new JLabel(" ready ");
+    private YearMonth visibleMonth = YearMonth.now();
+    private LocalDate selectedDate = LocalDate.now();
+
+    CalendarFrame() {
+        super("Calendar", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(640, 480);
+        setMinimumSize(new Dimension(520, 360));
+        setLocation(420, 180);
+
+        note.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        note.setBackground(PAPER);
+        note.setForeground(INK);
+
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+        rebuildCalendar();
+        loadNote();
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" CALENDAR ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel controls = new JPanel(new BorderLayout(8, 0));
+        controls.setBackground(PAPER);
+        controls.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("<", () -> changeMonth(-1)));
+        buttons.add(retroButton("Today", this::goToday));
+        buttons.add(retroButton(">", () -> changeMonth(1)));
+        controls.add(buttons, BorderLayout.WEST);
+        monthLabel.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
+        controls.add(monthLabel, BorderLayout.CENTER);
+
+        days.setBackground(PAPER);
+        days.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JPanel left = new JPanel(new BorderLayout());
+        left.setBackground(PAPER);
+        left.add(controls, BorderLayout.NORTH);
+        left.add(days, BorderLayout.CENTER);
+
+        JPanel notes = new JPanel(new BorderLayout(0, 6));
+        notes.setBackground(PAPER);
+        notes.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 8));
+        JLabel notesTitle = new JLabel(" Day Note ");
+        notesTitle.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        notes.add(notesTitle, BorderLayout.NORTH);
+        notes.add(new JScrollPane(note), BorderLayout.CENTER);
+        notes.add(retroButton("Save Note", this::saveNote), BorderLayout.SOUTH);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, notes);
+        split.setResizeWeight(0.62);
+        split.setBorder(null);
+
+        status.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        status.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        root.add(title, BorderLayout.NORTH);
+        root.add(split, BorderLayout.CENTER);
+        root.add(status, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu calendar = new JMenu("Calendar");
+        JMenuItem today = new JMenuItem("Today");
+        today.addActionListener(event -> goToday());
+        JMenuItem save = new JMenuItem("Save Note");
+        save.addActionListener(event -> saveNote());
+        JMenuItem close = new JMenuItem("Close");
+        close.addActionListener(event -> dispose());
+        calendar.add(today);
+        calendar.add(save);
+        calendar.add(close);
+        bar.add(calendar);
+        return bar;
+    }
+
+    private void rebuildCalendar() {
+        days.removeAll();
+        monthLabel.setText(" " + visibleMonth.getMonth() + " " + visibleMonth.getYear() + " ");
+        for (String name : new String[]{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}) {
+            JLabel label = new JLabel(name, JLabel.CENTER);
+            label.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+            days.add(label);
+        }
+        LocalDate first = visibleMonth.atDay(1);
+        int blanks = first.getDayOfWeek().getValue() % 7;
+        for (int i = 0; i < blanks; i++) {
+            days.add(new JLabel(""));
+        }
+        for (int day = 1; day <= visibleMonth.lengthOfMonth(); day++) {
+            LocalDate date = visibleMonth.atDay(day);
+            JButton button = retroButton(String.valueOf(day), () -> selectDate(date));
+            if (date.equals(selectedDate)) {
+                button.setBackground(INK);
+                button.setForeground(Color.WHITE);
+            } else if (date.equals(LocalDate.now())) {
+                button.setBorder(BorderFactory.createLineBorder(Color.RED, 2));
+            }
+            days.add(button);
+        }
+        days.revalidate();
+        days.repaint();
+        status.setText(" selected " + selectedDate.format(NOTE_KEY) + " ");
+    }
+
+    private void selectDate(LocalDate date) {
+        saveNote();
+        selectedDate = date;
+        visibleMonth = YearMonth.from(date);
+        rebuildCalendar();
+        loadNote();
+    }
+
+    private void changeMonth(int delta) {
+        saveNote();
+        visibleMonth = visibleMonth.plusMonths(delta);
+        if (!YearMonth.from(selectedDate).equals(visibleMonth)) {
+            selectedDate = visibleMonth.atDay(1);
+        }
+        rebuildCalendar();
+        loadNote();
+    }
+
+    private void goToday() {
+        saveNote();
+        selectedDate = LocalDate.now();
+        visibleMonth = YearMonth.from(selectedDate);
+        rebuildCalendar();
+        loadNote();
+    }
+
+    private void loadNote() {
+        try {
+            Path file = noteFile();
+            note.setText(Files.exists(file) ? Files.readString(file, StandardCharsets.UTF_8) : "");
+            note.setCaretPosition(0);
+            status.setText(" selected " + selectedDate.format(NOTE_KEY) + " ");
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Could not load calendar note:\n" + exception.getMessage(), "Calendar");
+        }
+    }
+
+    private void saveNote() {
+        try {
+            Path file = noteFile();
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, note.getText(), StandardCharsets.UTF_8);
+            status.setText(" saved " + selectedDate.format(NOTE_KEY) + " ");
+        } catch (IOException exception) {
+            DesktopSounds.showError(this, "Could not save calendar note:\n" + exception.getMessage(), "Calendar");
+        }
+    }
+
+    private Path noteFile() {
+        return Path.of(System.getProperty("user.home"), ".mactonish", "Calendar", selectedDate.format(NOTE_KEY) + ".txt");
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createLineBorder(INK, 2));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+}
+
+class StopwatchFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JLabel time = new JLabel("00:00.000", JLabel.CENTER);
+    private final JTextArea laps = new JTextArea();
+    private final javax.swing.Timer timer;
+    private long elapsedBeforeStart;
+    private long startedAt;
+    private int lapCount;
+    private boolean running;
+
+    StopwatchFrame() {
+        super("Stopwatch", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(420, 360);
+        setLocation(470, 220);
+        timer = new javax.swing.Timer(32, event -> updateTime());
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" STOPWATCH ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        time.setFont(new Font(Font.MONOSPACED, Font.BOLD, 42));
+        time.setForeground(INK);
+        time.setBorder(BorderFactory.createEmptyBorder(18, 8, 12, 8));
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+        buttons.setBackground(PAPER);
+        buttons.add(retroButton("Start", this::start));
+        buttons.add(retroButton("Stop", this::stop));
+        buttons.add(retroButton("Lap", this::lap));
+        buttons.add(retroButton("Reset", this::reset));
+
+        laps.setEditable(false);
+        laps.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        laps.setBackground(PAPER);
+        laps.setForeground(INK);
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(PAPER);
+        top.add(title, BorderLayout.NORTH);
+        top.add(time, BorderLayout.CENTER);
+        top.add(buttons, BorderLayout.SOUTH);
+
+        root.add(top, BorderLayout.NORTH);
+        root.add(new JScrollPane(laps), BorderLayout.CENTER);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu stopwatch = new JMenu("Stopwatch");
+        JMenuItem start = new JMenuItem("Start");
+        start.addActionListener(event -> start());
+        JMenuItem stop = new JMenuItem("Stop");
+        stop.addActionListener(event -> stop());
+        JMenuItem reset = new JMenuItem("Reset");
+        reset.addActionListener(event -> reset());
+        stopwatch.add(start);
+        stopwatch.add(stop);
+        stopwatch.add(reset);
+        bar.add(stopwatch);
+        return bar;
+    }
+
+    private void start() {
+        if (running) {
+            return;
+        }
+        running = true;
+        startedAt = System.currentTimeMillis();
+        timer.start();
+    }
+
+    private void stop() {
+        if (!running) {
+            return;
+        }
+        elapsedBeforeStart += System.currentTimeMillis() - startedAt;
+        running = false;
+        timer.stop();
+        updateTime();
+    }
+
+    private void lap() {
+        lapCount++;
+        laps.append("Lap " + lapCount + "  " + formatElapsed(currentElapsed()) + "\n");
+        laps.setCaretPosition(laps.getDocument().getLength());
+    }
+
+    private void reset() {
+        timer.stop();
+        running = false;
+        elapsedBeforeStart = 0;
+        startedAt = 0;
+        lapCount = 0;
+        laps.setText("");
+        updateTime();
+    }
+
+    private void updateTime() {
+        time.setText(formatElapsed(currentElapsed()));
+    }
+
+    private long currentElapsed() {
+        return running ? elapsedBeforeStart + (System.currentTimeMillis() - startedAt) : elapsedBeforeStart;
+    }
+
+    private String formatElapsed(long millis) {
+        long minutes = millis / 60_000;
+        long seconds = (millis / 1_000) % 60;
+        long ms = millis % 1_000;
+        return String.format(Locale.ROOT, "%02d:%02d.%03d", minutes, seconds, ms);
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+}
+
+class ConverterFrame extends JInternalFrame {
+    private static final Color PAPER = new Color(238, 238, 226);
+    private static final Color INK = Color.BLACK;
+
+    private final JComboBox<String> mode = new JComboBox<>(new String[]{"Length", "Weight", "Temperature"});
+    private final JComboBox<String> from = new JComboBox<>();
+    private final JComboBox<String> to = new JComboBox<>();
+    private final JTextField input = new JTextField("1");
+    private final JLabel result = new JLabel(" ");
+
+    ConverterFrame() {
+        super("Converter", true, true, true, true);
+        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        setSize(430, 300);
+        setLocation(520, 260);
+        mode.addActionListener(event -> configureUnits());
+        configureUnits();
+        setJMenuBar(buildMenu());
+        setContentPane(buildWindow());
+        convert();
+    }
+
+    private JPanel buildWindow() {
+        JPanel root = new JPanel(new BorderLayout(8, 8));
+        root.setBackground(PAPER);
+        root.setBorder(BorderFactory.createLineBorder(INK, 3));
+
+        JPanel title = new JPanel(new BorderLayout());
+        title.setBackground(PAPER);
+        title.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, INK));
+        JLabel titleText = new JLabel(" CONVERTER ", JLabel.CENTER);
+        titleText.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
+        title.add(new JLabel("  □  "), BorderLayout.WEST);
+        title.add(titleText, BorderLayout.CENTER);
+
+        JPanel form = new JPanel(new GridLayout(5, 2, 8, 8));
+        form.setBackground(PAPER);
+        form.setBorder(BorderFactory.createEmptyBorder(12, 12, 0, 12));
+        form.add(label("Type"));
+        form.add(mode);
+        form.add(label("Value"));
+        form.add(input);
+        form.add(label("From"));
+        form.add(from);
+        form.add(label("To"));
+        form.add(to);
+        form.add(new JLabel(""));
+        form.add(retroButton("Convert", this::convert));
+
+        result.setFont(new Font(Font.MONOSPACED, Font.BOLD, 14));
+        result.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, INK));
+
+        input.addActionListener(event -> convert());
+        from.addActionListener(event -> convert());
+        to.addActionListener(event -> convert());
+
+        root.add(title, BorderLayout.NORTH);
+        root.add(form, BorderLayout.CENTER);
+        root.add(result, BorderLayout.SOUTH);
+        return root;
+    }
+
+    private JMenuBar buildMenu() {
+        JMenuBar bar = new JMenuBar();
+        JMenu converter = new JMenu("Converter");
+        JMenuItem run = new JMenuItem("Convert");
+        run.addActionListener(event -> convert());
+        JMenuItem swap = new JMenuItem("Swap Units");
+        swap.addActionListener(event -> swapUnits());
+        converter.add(run);
+        converter.add(swap);
+        bar.add(converter);
+        return bar;
+    }
+
+    private void configureUnits() {
+        String selectedMode = String.valueOf(mode.getSelectedItem());
+        String[] units;
+        if ("Weight".equals(selectedMode)) {
+            units = new String[]{"Kilograms", "Grams", "Pounds", "Ounces"};
+        } else if ("Temperature".equals(selectedMode)) {
+            units = new String[]{"Celsius", "Fahrenheit", "Kelvin"};
+        } else {
+            units = new String[]{"Meters", "Kilometers", "Feet", "Miles", "Inches"};
+        }
+        from.removeAllItems();
+        to.removeAllItems();
+        for (String unit : units) {
+            from.addItem(unit);
+            to.addItem(unit);
+        }
+        if (units.length > 1) {
+            to.setSelectedIndex(1);
+        }
+        convert();
+    }
+
+    private void convert() {
+        try {
+            double value = Double.parseDouble(input.getText().trim());
+            String selectedMode = String.valueOf(mode.getSelectedItem());
+            String fromUnit = String.valueOf(from.getSelectedItem());
+            String toUnit = String.valueOf(to.getSelectedItem());
+            double converted;
+            if ("Temperature".equals(selectedMode)) {
+                converted = fromCelsius(toCelsius(value, fromUnit), toUnit);
+            } else if ("Weight".equals(selectedMode)) {
+                converted = fromKilograms(toKilograms(value, fromUnit), toUnit);
+            } else {
+                converted = fromMeters(toMeters(value, fromUnit), toUnit);
+            }
+            result.setText(" " + trim(value) + " " + fromUnit + " = " + trim(converted) + " " + toUnit + " ");
+        } catch (RuntimeException exception) {
+            result.setText(" enter a number ");
+        }
+    }
+
+    private void swapUnits() {
+        Object oldFrom = from.getSelectedItem();
+        from.setSelectedItem(to.getSelectedItem());
+        to.setSelectedItem(oldFrom);
+        convert();
+    }
+
+    private double toMeters(double value, String unit) {
+        return switch (unit) {
+            case "Kilometers" -> value * 1000.0;
+            case "Feet" -> value * 0.3048;
+            case "Miles" -> value * 1609.344;
+            case "Inches" -> value * 0.0254;
+            default -> value;
+        };
+    }
+
+    private double fromMeters(double value, String unit) {
+        return switch (unit) {
+            case "Kilometers" -> value / 1000.0;
+            case "Feet" -> value / 0.3048;
+            case "Miles" -> value / 1609.344;
+            case "Inches" -> value / 0.0254;
+            default -> value;
+        };
+    }
+
+    private double toKilograms(double value, String unit) {
+        return switch (unit) {
+            case "Grams" -> value / 1000.0;
+            case "Pounds" -> value * 0.45359237;
+            case "Ounces" -> value * 0.028349523125;
+            default -> value;
+        };
+    }
+
+    private double fromKilograms(double value, String unit) {
+        return switch (unit) {
+            case "Grams" -> value * 1000.0;
+            case "Pounds" -> value / 0.45359237;
+            case "Ounces" -> value / 0.028349523125;
+            default -> value;
+        };
+    }
+
+    private double toCelsius(double value, String unit) {
+        return switch (unit) {
+            case "Fahrenheit" -> (value - 32.0) * 5.0 / 9.0;
+            case "Kelvin" -> value - 273.15;
+            default -> value;
+        };
+    }
+
+    private double fromCelsius(double value, String unit) {
+        return switch (unit) {
+            case "Fahrenheit" -> value * 9.0 / 5.0 + 32.0;
+            case "Kelvin" -> value + 273.15;
+            default -> value;
+        };
+    }
+
+    private String trim(double value) {
+        String text = String.format(Locale.ROOT, "%.6f", value);
+        while (text.contains(".") && text.endsWith("0")) {
+            text = text.substring(0, text.length() - 1);
+        }
+        if (text.endsWith(".")) {
+            text = text.substring(0, text.length() - 1);
+        }
+        return text;
+    }
+
+    private JLabel label(String text) {
+        JLabel label = new JLabel(" " + text + " ");
+        label.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        return label;
+    }
+
+    private JButton retroButton(String label, Runnable action) {
+        JButton button = new JButton(label);
+        button.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        button.setForeground(INK);
+        button.setBackground(PAPER);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(INK, 2),
+                BorderFactory.createEmptyBorder(3, 10, 3, 10)
+        ));
+        button.addActionListener(event -> action.run());
+        return button;
+    }
+}
+
 class HelpFrame extends JInternalFrame {
     HelpFrame() {
         super("Help", true, true, true, true);
@@ -6339,6 +6946,9 @@ class HelpFrame extends JInternalFrame {
                 Games       Play Minesweeper and Pong.
                 App Store   Browse installable local apps and extensions.
                 Settings    Change wallpaper, startup sound, password, and icons.
+                Calendar    Browse months and save per-day notes.
+                Stopwatch   Time events with lap logging.
+                Converter   Convert length, weight, and temperature units.
                 Calculator  Basic arithmetic with parentheses.
                 Clock       Local date and time.
                 Sys Info    Java, OS, memory, CPU, and disk information.
@@ -6354,7 +6964,7 @@ class HelpFrame extends JInternalFrame {
                 - SSH Connect uses PHP to run system ssh/scp commands and keeps
                   output inside the Mactonish window.
                 - Finder moves deleted files to ~/.mactonish/Trash.
-                - Vault, Trash, and Reminders save under ~/.mactonish.
+                - Vault, Trash, Reminders, and Calendar save under ~/.mactonish.
                 - Use the bottom taskbar to switch between open windows.
                 - Emergency Panel commands include function:settings-bsod,
                   function:trash-bsod, and function:taskbar-bsod.

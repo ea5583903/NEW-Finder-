@@ -2,4 +2,4 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec php "$SCRIPT_DIR/mactonishxp.php" "$@"
+exec php "$SCRIPT_DIR/dell-nano.php" "$@"

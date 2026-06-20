@@ -1,0 +1,15 @@
+/tmp/dell-nano-csharp-build/DellNano
+/tmp/dell-nano-csharp-build/DellNano.deps.json
+/tmp/dell-nano-csharp-build/DellNano.runtimeconfig.json
+/tmp/dell-nano-csharp-build/DellNano.dll
+/tmp/dell-nano-csharp-build/DellNano.pdb
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/DellNano.GeneratedMSBuildEditorConfig.editorconfig
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/DellNano.AssemblyInfoInputs.cache
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/DellNano.AssemblyInfo.cs
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/DellNano.csproj.CoreCompileInputs.cache
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/DellNano.sourcelink.json
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/DellNano.dll
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/refint/DellNano.dll
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/DellNano.pdb
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/DellNano.genruntimeconfig.cache
+/Users/elia/IdeaProjects/emf/csharp-cli/obj/Debug/net10.0/ref/DellNano.dll
